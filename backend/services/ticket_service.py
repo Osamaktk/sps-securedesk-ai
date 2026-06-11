@@ -209,6 +209,7 @@ async def update_ticket(
         if not assigned_agent or ROLE_LEVELS[assigned_agent.role] < ROLE_LEVELS[UserRole.AGENT]:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Assigned user must be an agent or above")
 
+    old_sla_due_at = ticket.sla_due_at
     for field_name, new_value in update_data.items():
         old_value = getattr(ticket, field_name)
         if old_value != new_value:
@@ -219,6 +220,11 @@ async def update_ticket(
         return ticket
 
     ticket.updated_at = utc_now()
+    if "priority" in changes:
+        ticket.sla_due_at = compute_sla_due_at(ticket.updated_at, ticket.priority)
+        if old_sla_due_at != ticket.sla_due_at:
+            changes["sla_due_at"] = {"from": _json_safe(old_sla_due_at), "to": _json_safe(ticket.sla_due_at)}
+
     event_type = TimelineEventType.STATUS_CHANGE if "status" in changes else TimelineEventType.FIELD_UPDATE
     db.add(
         TimelineEvent(

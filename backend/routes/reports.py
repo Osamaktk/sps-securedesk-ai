@@ -14,7 +14,7 @@ from schemas.reports import ReportSummary
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
-REPORT_ROLES = {UserRole.MANAGER, UserRole.ADMINISTRATOR}
+REPORT_ROLES = {UserRole.SECURITY_ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATOR}
 
 
 def _as_utc(value: datetime) -> datetime:

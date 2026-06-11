@@ -2,7 +2,6 @@ from schemas.auth import LoginRequest, RegisterRequest, TokenResponse, TokenUser
 from schemas.ticket import (
     ApprovalRequest,
     AttachmentRead,
-    ReportSummary,
     TicketCreate,
     TicketDetailRead,
     TicketRead,
@@ -10,6 +9,7 @@ from schemas.ticket import (
     TimelineEventCreate,
     TimelineEventRead,
 )
+from schemas.reports import ReportSummary
 from schemas.user import UserCreate, UserPublic, UserRead
 
 __all__ = [

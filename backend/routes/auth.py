@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
+from middleware.security_middleware import log_security_event
 from models.user import User
 from schemas.auth import LoginRequest, RegisterRequest, TokenResponse, TokenUser
 from schemas.user import UserPublic
@@ -23,13 +24,23 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def _enforce_login_rate_limit(request: Request) -> None:
+async def _enforce_login_rate_limit(request: Request, db: AsyncSession) -> None:
     client_ip = _client_ip(request)
     now = datetime.now(timezone.utc)
     attempts = LOGIN_ATTEMPTS[client_ip]
     while attempts and attempts[0] <= now - LOGIN_WINDOW:
         attempts.popleft()
     if len(attempts) >= LOGIN_LIMIT:
+        await log_security_event(
+            action="security.brute_force",
+            request=request,
+            db=db,
+            details={
+                "attempts": len(attempts),
+                "limit": LOGIN_LIMIT,
+                "window_seconds": int(LOGIN_WINDOW.total_seconds()),
+            },
+        )
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many login attempts")
     attempts.append(now)
 
@@ -58,7 +69,7 @@ async def login(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TokenResponse:
-    _enforce_login_rate_limit(request)
+    await _enforce_login_rate_limit(request, db)
     user = await db.scalar(select(User).where(User.email == payload.email))
     if not user or not user.is_active or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")

@@ -2,11 +2,12 @@ import uuid
 from collections.abc import Callable
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
+from middleware.security_middleware import log_security_event
 from models.user import ROLE_LEVELS, User, UserRole
 from services.auth_service import decode_access_token
 
@@ -52,8 +53,22 @@ async def get_current_user(
 
 
 def require_min_role(min_role: UserRole) -> Callable[[User], User]:
-    async def dependency(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    async def dependency(
+        request: Request,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_current_user)],
+    ) -> User:
         if ROLE_LEVELS[current_user.role] < ROLE_LEVELS[min_role]:
+            await log_security_event(
+                action="security.unauthorised_access",
+                request=request,
+                db=db,
+                actor_id=current_user.id,
+                details={
+                    "required_role": min_role.value,
+                    "actual_role": current_user.role.value,
+                },
+            )
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
         return current_user
 
@@ -61,8 +76,22 @@ def require_min_role(min_role: UserRole) -> Callable[[User], User]:
 
 
 def require_roles(allowed_roles: set[UserRole]) -> Callable[[User], User]:
-    async def dependency(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    async def dependency(
+        request: Request,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_current_user)],
+    ) -> User:
         if current_user.role not in allowed_roles:
+            await log_security_event(
+                action="security.unauthorised_access",
+                request=request,
+                db=db,
+                actor_id=current_user.id,
+                details={
+                    "allowed_roles": sorted(role.value for role in allowed_roles),
+                    "actual_role": current_user.role.value,
+                },
+            )
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
         return current_user
 

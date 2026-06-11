@@ -10,7 +10,7 @@ from database import get_db
 from middleware.auth_middleware import require_roles
 from models.ticket import RiskLevel, Ticket, TicketCategory, TicketSource, TicketStatus
 from models.user import User, UserRole
-from schemas.ticket import ReportSummary
+from schemas.reports import ReportSummary
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 

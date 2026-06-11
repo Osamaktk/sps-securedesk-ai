@@ -4,16 +4,18 @@ import uuid
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from middleware.auth_middleware import get_current_user
+from middleware.auth_middleware import get_optional_current_user
+from middleware.security_middleware import log_security_event
 from models.attachment import Attachment
 from models.timeline_event import TimelineEvent, TimelineEventType
 from models.user import User
 from schemas.ticket import AttachmentRead
 from services import ticket_service
+from services.audit_service import write_audit_log
 
 router = APIRouter(prefix="/tickets", tags=["attachments"])
 
@@ -24,6 +26,10 @@ def _max_upload_size_bytes() -> int:
 
 def _upload_dir() -> Path:
     return Path(os.getenv("UPLOAD_DIR", "./uploads"))
+
+
+def _client_ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
 
 
 def _safe_filename(filename: str) -> str:
@@ -67,19 +73,32 @@ def _detect_mime(content: bytes, provided_mime: str | None) -> str:
 @router.post("/{ticket_id}/attachments", response_model=AttachmentRead, status_code=status.HTTP_201_CREATED)
 async def upload_attachment(
     ticket_id: uuid.UUID,
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User | None, Depends(get_optional_current_user)],
     file: UploadFile = File(...),
 ) -> Attachment:
     ticket = await ticket_service.get_ticket_by_id(db, ticket_id)
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
-    if not ticket_service.user_can_view_ticket(current_user, ticket):
+    if current_user and not ticket_service.user_can_view_ticket(current_user, ticket):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
 
     max_size = _max_upload_size_bytes()
     content = await file.read(max_size + 1)
     if len(content) > max_size:
+        await log_security_event(
+            action="security.oversized_upload",
+            request=request,
+            db=db,
+            actor_id=current_user.id if current_user else None,
+            details={
+                "ticket_id": str(ticket_id),
+                "filename": _safe_filename(file.filename or "attachment"),
+                "max_size_bytes": max_size,
+                "received_size_bytes": len(content),
+            },
+        )
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File exceeds 10MB limit")
 
     mime_type = _detect_mime(content, file.content_type)
@@ -92,7 +111,7 @@ async def upload_attachment(
 
     attachment = Attachment(
         ticket_id=ticket_id,
-        uploaded_by=current_user.id,
+        uploaded_by=current_user.id if current_user else None,
         filename=original_name,
         file_path=str(file_path),
         file_size=len(content),
@@ -103,12 +122,21 @@ async def upload_attachment(
         TimelineEvent(
             ticket_id=ticket_id,
             event_type=TimelineEventType.FILE_UPLOADED,
-            actor_id=current_user.id,
-            actor_email=current_user.email,
+            actor_id=current_user.id if current_user else None,
+            actor_email=current_user.email if current_user else ticket.requester_email,
             content=original_name,
             is_public=True,
             channel="portal",
         )
+    )
+    await write_audit_log(
+        db,
+        ticket_id=ticket_id,
+        actor_id=current_user.id if current_user else None,
+        action="ticket.attachment_uploaded",
+        channel="portal",
+        details={"filename": original_name, "mime_type": mime_type, "file_size": len(content)},
+        ip_address=_client_ip(request),
     )
     await db.commit()
     await db.refresh(attachment)

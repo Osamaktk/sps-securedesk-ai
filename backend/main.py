@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import models  # noqa: F401
 from database import Base, DATABASE_URL, engine
+from middleware.security_middleware import check_security_threats
 from routes import approvals_router, attachments_router, auth_router, events_router, reports_router, tickets_router
 
 load_dotenv()
@@ -37,6 +38,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.middleware("http")(check_security_threats)
 
 app.include_router(auth_router)
 app.include_router(tickets_router)

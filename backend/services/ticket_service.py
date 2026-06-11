@@ -251,22 +251,38 @@ async def add_timeline_event(
     db: AsyncSession,
     ticket_id: uuid.UUID,
     payload: TimelineEventCreate,
-    actor: User,
+    actor: User | None,
+    *,
+    ip_address: str | None = None,
 ) -> TimelineEvent:
     ticket = await get_ticket_by_id(db, ticket_id)
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
 
+    if actor and not user_can_view_ticket(actor, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+    if not actor and payload.channel not in {"email", "chat"}:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required for this event channel")
+
     event = TimelineEvent(
         ticket_id=ticket_id,
         event_type=payload.event_type,
-        actor_id=actor.id,
-        actor_email=actor.email,
+        actor_id=actor.id if actor else None,
+        actor_email=actor.email if actor else None,
         content=payload.content,
         is_public=payload.is_public,
         channel=payload.channel,
     )
     db.add(event)
+    await write_audit_log(
+        db,
+        ticket_id=ticket_id,
+        actor_id=actor.id if actor else None,
+        action="ticket.event_added",
+        channel=payload.channel,
+        details={"event_type": payload.event_type.value, "is_public": payload.is_public},
+        ip_address=ip_address,
+    )
     await db.commit()
     await db.refresh(event)
     return event

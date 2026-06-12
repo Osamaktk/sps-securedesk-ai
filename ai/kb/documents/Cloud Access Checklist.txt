@@ -1,0 +1,11 @@
+# Section 1: Overview
+Cloud access is granted according to job responsibilities, least privilege, and manager or system-owner approval. Access must use an individual SPS identity; shared credentials are prohibited.
+
+# Section 2: Steps
+Confirm the requested cloud service, business purpose, role, environment, and required duration. Obtain manager and application-owner approval. Submit the access request with the user email and approved role, then verify multi-factor authentication and record the completion date.
+
+# Section 3: Common Issues
+Requests are delayed when the role, environment, or approver is missing. Access may also fail when users sign in with personal accounts or stale browser sessions. Sign out of all accounts, use a private browser session, and select the SPS identity.
+
+# Section 4: When to Contact Support
+Contact Identity and Access for role assignment problems or approval questions. Contact Security Operations for unexpected privilege changes, unknown accounts, suspicious sign-ins, or access that exceeds the approved role.

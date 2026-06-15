@@ -1,0 +1,3 @@
+Classify the supplied support ticket using only the allowed category, priority, risk,
+and team values provided by the application. Return structured data and do not infer
+facts that are absent from the ticket.

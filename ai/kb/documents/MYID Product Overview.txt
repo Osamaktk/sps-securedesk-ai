@@ -1,0 +1,11 @@
+# Section 1: Overview
+MYID is the SPS identity experience used to access approved applications and identity self-service capabilities. It provides a consistent sign-in entry point and may display applications according to the user's assigned roles.
+
+# Section 2: Steps
+Open the approved MYID URL from an SPS bookmark, enter the work identity, and complete multi-factor authentication. Use the application catalog to open assigned services. Review security information periodically and keep recovery methods current.
+
+# Section 3: Common Issues
+An application may be absent when its role has not been approved or provisioning is still processing. Browser cookies can also retain the wrong account. Sign out, close the browser, and retry with the SPS identity before raising a ticket.
+
+# Section 4: When to Contact Support
+Contact Identity and Access when an approved application is missing, an identity attribute is incorrect, or enrollment cannot complete. Report unexpected sign-in prompts, unfamiliar recovery methods, or unauthorized application access to Security Operations.

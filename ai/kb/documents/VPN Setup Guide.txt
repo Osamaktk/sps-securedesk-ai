@@ -1,0 +1,11 @@
+# Section 1: Overview
+The corporate VPN provides an encrypted connection to internal SPS services when staff work outside an approved office network. Use only the organization-managed VPN client and your assigned SPS account. Never approve an unexpected multi-factor authentication request.
+
+# Section 2: Steps
+Install the managed VPN client from the company software portal. Open the client, select the SPS Corporate profile, and sign in with your work email and password. Complete multi-factor authentication, then confirm that the client status shows Connected before opening internal systems.
+
+# Section 3: Common Issues
+If authentication loops, verify the device clock and retry after closing the client. If the profile is missing, refresh the software portal and reinstall the managed configuration. Slow connections may improve after disconnecting other consumer VPN products. Do not disable endpoint security controls.
+
+# Section 4: When to Contact Support
+Contact the Service Desk if installation fails, the corporate profile is unavailable, or access remains blocked after a password check. Contact Security Operations immediately if you receive an MFA request you did not initiate or believe credentials were exposed.

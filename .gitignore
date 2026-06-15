@@ -1,33 +1,99 @@
+# ==============================
+# Environment Variables
+# ==============================
 .env
 .env.*
 !.env.example
 
+# Backend Environment Variables
 backend/.env
 backend/.env.*
 !backend/.env.example
 
+# ==============================
+# Python Bytecode & Caches
+# ==============================
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyc
+
+# ==============================
+# Python Testing & Quality
+# ==============================
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.coverage
+htmlcov/
+.pytest_cache/
 
+# ==============================
+# Python Packaging & Build
+# ==============================
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# ==============================
+# Virtual Environments
+# ==============================
 .venv/
 venv/
 env/
 
+# Python Version (pyenv)
+.python-version
+
+# ==============================
+# Database Files
+# ==============================
 securedesk.db
 *.sqlite
 *.sqlite3
+*_backup.sqlite3
 
+# ==============================
+# Upload Directories
+# ==============================
 uploads/
 backend/uploads/
 
+# ==============================
+# Node.js / Frontend
+# ==============================
 node_modules/
-dist/
-build/
 .vite/
 
+# ==============================
+# Log Files
+# ==============================
+*.log
+
+# ==============================
+# IDE & Editor Files
+# ==============================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ==============================
+# Jupyter Notebooks
+# ==============================
+.ipynb_checkpoints/
+
+# ==============================
+# OS-Specific Files
+# ==============================
 .DS_Store
 Thumbs.db
+Desktop.ini
+
+# ==============================
+# Docker (if used)
+# ==============================
+.docker/

@@ -1,0 +1,11 @@
+# Section 1: Overview
+Intern onboarding provides time-limited access to the tools needed for an approved placement. The sponsoring manager owns the access scope, end date, supervision plan, and return of SPS equipment.
+
+# Section 2: Steps
+Confirm the intern's legal name, SPS email, manager, team, start date, and end date. Issue a managed device where required, enroll multi-factor authentication, complete security awareness training, and request only the approved applications and data access.
+
+# Section 3: Common Issues
+Access requests may fail when the end date, sponsor, or project role is absent. Intern accounts may be intentionally restricted from production systems and sensitive repositories. Managers should request exceptions through the documented approval process.
+
+# Section 4: When to Contact Support
+Contact the Service Desk for device setup and standard application issues. Contact Identity and Access for account dates or permissions. Notify Security Operations and Human Resources if equipment, credentials, or confidential data may be at risk.

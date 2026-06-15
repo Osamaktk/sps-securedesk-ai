@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Environment
+.env
+.env.*
+
+# Virtual Environment
+venv/
+ai/venv/
+
+# Logs
+*.log
+
+# ChromaDB
+kb/chroma_store/

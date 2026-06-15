@@ -1,0 +1,11 @@
+# Section 1: Overview
+SPS access follows least privilege, individual accountability, business need, and timely removal. Users must access systems only through assigned identities and must not share passwords, tokens, recovery codes, or authenticated sessions.
+
+# Section 2: Steps
+Request access through the approved workflow with the system, role, business justification, manager, and duration. System owners review privileged roles. Access is periodically recertified and must be removed when duties change or employment ends.
+
+# Section 3: Common Issues
+Broad role requests are returned when a narrower role can meet the business need. Shared accounts require documented technical justification and additional controls. Dormant access may be automatically disabled and must be requested again.
+
+# Section 4: When to Contact Support
+Contact Identity and Access for provisioning, role selection, or recertification questions. Contact Security Operations immediately for unauthorized access, privilege escalation, shared credentials, suspicious login alerts, or access retained after departure.

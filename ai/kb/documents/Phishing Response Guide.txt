@@ -1,0 +1,11 @@
+# Section 1: Overview
+Phishing messages attempt to steal credentials, deliver malware, or trigger fraudulent payments. Warning signs include urgent language, unexpected links, unusual sender domains, attachment prompts, and requests to bypass normal procedures.
+
+# Section 2: Steps
+Do not reply, click links, open attachments, or forward the message normally. Use the approved Report Phishing action so headers and message content reach Security Operations. If you interacted with the message, disconnect from sensitive systems and record what was clicked or entered.
+
+# Section 3: Common Issues
+A familiar display name does not prove a message is genuine. Attackers may imitate executives, suppliers, or support staff. Mobile screens can hide the real sender address, so inspect the full address and link destination without opening it.
+
+# Section 4: When to Contact Support
+Contact Security Operations immediately if credentials were entered, an attachment was opened, money or sensitive data was sent, or an unexpected MFA request was approved. Contact the Service Desk for password reset and device isolation instructions.

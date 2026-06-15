@@ -1,0 +1,628 @@
+@media (min-width: 1101px) {
+  .app-shell--sidebar-collapsed .sidebar {
+    width: 84px;
+  }
+
+  .app-shell--sidebar-collapsed .workspace {
+    margin-left: 84px;
+  }
+
+  .sidebar--collapsed .sidebar__brand {
+    justify-content: center;
+    padding: 0 12px;
+  }
+
+  .sidebar--collapsed .sidebar__nav {
+    padding-inline: 12px;
+  }
+
+  .sidebar--collapsed .nav-section__label,
+  .sidebar--collapsed .nav-link__text,
+  .sidebar--collapsed .sidebar__status-copy,
+  .sidebar--collapsed .sidebar__collapse-label {
+    display: none;
+  }
+
+  .sidebar--collapsed .nav-link {
+    justify-content: center;
+    padding-inline: 6px;
+  }
+
+  .sidebar--collapsed .sidebar__status {
+    justify-content: center;
+    margin-inline: 12px;
+    padding-inline: 8px;
+  }
+
+  .sidebar--collapsed .sidebar__collapse-button {
+    justify-content: center;
+    width: calc(100% - 24px);
+    margin-inline: 12px;
+    padding-inline: 6px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .sidebar {
+    width: 260px;
+    transform: translateX(-100%);
+    transition: transform 180ms ease;
+  }
+
+  .sidebar--open {
+    transform: translateX(0);
+  }
+
+  .sidebar__close,
+  .menu-button {
+    display: grid;
+  }
+
+  .menu-button {
+    width: auto;
+    min-width: 44px;
+    padding-inline: 9px;
+    font-size: 9px;
+    font-weight: 850;
+  }
+
+  .sidebar__close {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--sps-white);
+  }
+
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    display: block;
+    border: 0;
+    background: rgba(11, 31, 77, 0.5);
+    cursor: pointer;
+  }
+
+  .workspace {
+    margin-left: 0;
+  }
+
+  .topbar {
+    justify-content: flex-start;
+  }
+
+  .topbar__search {
+    width: min(360px, 40vw);
+    margin-left: auto;
+  }
+
+  .topbar__actions {
+    margin-left: 0;
+  }
+
+  .sidebar__collapse-button {
+    display: none;
+  }
+
+  .login-page {
+    grid-template-columns: minmax(380px, 0.9fr) minmax(400px, 1.1fr);
+  }
+
+  .login-panel {
+    padding: 40px;
+  }
+
+  .login-visual {
+    padding: 42px;
+  }
+
+  .ai-chat-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-chat-conversation-card {
+    height: min(720px, calc(100vh - 185px));
+  }
+
+  .ai-chat-side-panel {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ai-chat-safety-note {
+    grid-column: 1 / -1;
+  }
+
+  .dashboard-stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-filters__selects {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+  }
+
+  .ticket-detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-detail-side {
+    position: static;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .submit-request-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .submit-request-guidance {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .requester-ticket__action-panel {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .requester-ticket__action-panel .file-upload {
+    grid-column: 1 / -1;
+  }
+
+  .security-stat-grid,
+  .manager-stat-grid,
+  .admin-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-area-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .audit-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .profile-menu__copy,
+  .profile-menu__chevron {
+    display: none;
+  }
+
+  .profile-menu__trigger {
+    padding-right: 4px;
+  }
+
+  .dashboard-secondary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-table-wrap {
+    display: none;
+  }
+
+  .ticket-card-list {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .ticket-detail-side {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-reply-box__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ticket-reply-box__status,
+  .ticket-reply-box__actions {
+    width: 100%;
+  }
+
+  .ticket-reply-box__actions {
+    justify-content: flex-end;
+  }
+
+  .requester-dashboard-stats,
+  .requester-quick-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .security-dashboard-grid,
+  .manager-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .approval-card__details {
+    grid-template-columns: 1fr;
+  }
+
+  .approval-card__details > div:nth-last-child(-n + 2) {
+    border-bottom: 1px solid var(--sps-border);
+  }
+
+  .approval-card__details > div:last-child {
+    border-bottom: 0;
+  }
+
+  .reports-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-wide-card {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    min-height: 66px;
+    gap: 10px;
+    padding: 0 16px;
+  }
+
+  .topbar__label,
+  .topbar__search {
+    display: none;
+  }
+
+  .topbar__context strong {
+    font-size: 12px;
+  }
+
+  .workspace__content {
+    padding: 22px 16px;
+  }
+
+  .card__body {
+    padding: 18px;
+  }
+
+  .page-heading,
+  .card__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .page-heading > .badge {
+    align-self: flex-start;
+  }
+
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-card {
+    min-height: auto;
+  }
+
+  .card__header {
+    padding: 18px;
+  }
+
+  .card__actions {
+    width: 100%;
+  }
+
+  .modal__footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .modal__footer .button {
+    width: 100%;
+  }
+
+  .login-page {
+    display: block;
+  }
+
+  .login-panel {
+    min-height: 100vh;
+    padding: 34px 22px;
+  }
+
+  .login-panel__intro {
+    margin: 48px 0 28px;
+  }
+
+  .login-visual {
+    display: none;
+  }
+
+  .chat-widget {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .chat-window {
+    width: calc(100vw - 24px);
+    height: min(680px, calc(100vh - 82px));
+    min-height: 420px;
+    border-radius: 14px;
+  }
+
+  .chat-launcher {
+    min-height: 48px;
+    padding-right: 14px;
+  }
+
+  .chat-launcher__icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .ai-chat-conversation-card {
+    height: 650px;
+    min-height: 540px;
+  }
+
+  .ai-chat-conversation {
+    padding: 18px 14px;
+  }
+
+  .ai-chat-conversation .chat-message__content {
+    max-width: 84%;
+  }
+
+  .ai-chat-conversation .chat-ticket-card {
+    width: calc(100% - 42px);
+    margin-left: 42px;
+  }
+
+  .ai-chat-side-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-chat-safety-note {
+    grid-column: auto;
+  }
+
+  .dashboard-stat-grid,
+  .channel-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-info-banner {
+    padding: 12px;
+  }
+
+  .high-risk-item {
+    flex-wrap: wrap;
+  }
+
+  .high-risk-item__badges {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    padding-left: 36px;
+  }
+
+  .sla-overview__summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .sla-overview__summary p {
+    max-width: none;
+    text-align: left;
+  }
+}
+
+@media (max-width: 480px) {
+  .card__body > .empty-state {
+    margin: -18px;
+  }
+
+  .topbar__context {
+    display: none;
+  }
+
+  .topbar__actions {
+    margin-left: auto;
+  }
+
+  .chat-widget {
+    inset: auto 0 0;
+    align-items: flex-end;
+    padding: 0 8px 8px;
+  }
+
+  .chat-window {
+    width: 100%;
+    height: calc(100vh - 70px);
+    max-height: none;
+    border-radius: 14px 14px 10px 10px;
+  }
+
+  .chat-launcher--open {
+    min-height: 42px;
+    padding-right: 12px;
+  }
+
+  .chat-launcher--open .chat-launcher__icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .chat-ticket-card {
+    margin-left: 0;
+  }
+
+  .chat-ticket-card__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ai-chat-conversation-card {
+    height: 620px;
+    min-height: 500px;
+  }
+
+  .ai-chat-conversation-card__header,
+  .ai-chat-composer {
+    padding-inline: 12px;
+  }
+
+  .ai-chat-conversation .chat-message__content {
+    max-width: 88%;
+  }
+
+  .ai-chat-conversation .chat-ticket-card {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .ai-chat-ticket-preview__badges {
+    grid-template-columns: 1fr;
+  }
+
+  .channel-health__item {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .channel-health__status {
+    width: 100%;
+    padding-left: 39px;
+  }
+
+  .ticket-filters__selects {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-queue-table-card__heading,
+  .ticket-detail-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ticket-detail-header__badges {
+    max-width: none;
+    justify-content: flex-start;
+  }
+
+  .ticket-timeline__event-heading {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .ticket-reply-box__status,
+  .ticket-reply-box__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ticket-reply-box__status label,
+  .ticket-reply-box__status select,
+  .ticket-reply-box__footer .button {
+    width: 100%;
+  }
+
+  .ticket-detail-facts > div {
+    grid-template-columns: 90px minmax(0, 1fr);
+  }
+
+  .request-form__grid,
+  .submit-request-guidance {
+    grid-template-columns: 1fr;
+  }
+
+  .request-form__footer,
+  .requester-ticket__heading,
+  .requester-ticket__action-panel {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .request-form__footer,
+  .requester-ticket__heading {
+    flex-direction: column;
+  }
+
+  .request-form__footer .button,
+  .request-confirmation__actions .button,
+  .requester-ticket__action-panel > .button {
+    width: 100%;
+  }
+
+  .file-upload__dropzone,
+  .request-confirmation {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .file-upload__dropzone .button {
+    width: 100%;
+  }
+
+  .request-confirmation {
+    margin: 20px auto;
+    padding: 20px;
+  }
+
+  .request-confirmation__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .requester-ticket__badges {
+    justify-content: flex-start;
+  }
+
+  .requester-recent-list > a {
+    grid-template-columns: 1fr;
+  }
+
+  .requester-recent-list__badges {
+    flex-wrap: wrap;
+  }
+
+  .approval-card__header,
+  .approval-card__footer,
+  .security-ticket-list > a {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .approval-card__actions,
+  .approval-card__actions .button {
+    width: 100%;
+  }
+
+  .security-ticket-list__badges {
+    flex-wrap: wrap;
+  }
+
+  .security-stat-grid,
+  .manager-stat-grid,
+  .admin-stat-grid,
+  .admin-area-grid,
+  .audit-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-donut-placeholder {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .report-donut-placeholder ul {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

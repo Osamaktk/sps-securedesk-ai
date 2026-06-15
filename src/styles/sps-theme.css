@@ -1,0 +1,17 @@
+:root {
+  --sps-deep-navy: #0b1f4d;
+  --sps-blue: #005bbb;
+  --sps-bright-blue: #007bff;
+  --sps-light-blue: #f3f8ff;
+  --sps-border-blue: #d6e6f8;
+  --sps-white: #ffffff;
+  --sps-page-background: #f7f9fc;
+  --sps-text-primary: #111827;
+  --sps-text-secondary: #6b7280;
+  --sps-border: #e5e7eb;
+  --sps-success: #16855b;
+  --sps-sidebar-width: 280px;
+  --sps-topbar-height: 76px;
+  --sps-card-shadow: 0 10px 30px rgba(11, 31, 77, 0.08);
+  --sps-focus-ring: 0 0 0 3px rgba(0, 91, 187, 0.18);
+}

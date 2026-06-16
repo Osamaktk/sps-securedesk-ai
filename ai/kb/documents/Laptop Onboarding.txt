@@ -1,0 +1,11 @@
+# Section 1: Overview
+New SPS laptops are provisioned with managed operating systems, endpoint protection, encryption, and standard business applications. The assigned employee is responsible for completing enrollment and confirming required access.
+
+# Section 2: Steps
+Connect the laptop to power and a trusted network. Sign in with the temporary onboarding credentials, create a compliant password, and register multi-factor authentication. Complete device enrollment, install pending updates, and verify disk encryption and endpoint protection status.
+
+# Section 3: Common Issues
+Enrollment can pause when internet access is unstable or the device date is incorrect. Restart once, reconnect, and allow updates to finish. Missing applications should be installed from the managed software portal rather than downloaded from public sites.
+
+# Section 4: When to Contact Support
+Contact the Service Desk if the employee cannot sign in, enrollment fails repeatedly, encryption reports an error, or the device is assigned to the wrong person. Report physical damage or missing equipment immediately.

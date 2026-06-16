@@ -1,0 +1,11 @@
+# Section 1: Overview
+SPS email is available through the approved desktop client, mobile client, and web portal. Corporate email must use the managed account configuration so encryption, retention, and security policies are applied.
+
+# Section 2: Steps
+Open the approved mail application and choose Add Work Account. Enter your SPS email address and complete the organization sign-in and multi-factor authentication flow. Allow the application to apply management settings, then verify that mail, calendar, and contacts synchronize.
+
+# Section 3: Common Issues
+Repeated password prompts often indicate an expired session or recently changed password. Remove only the affected account profile, restart the application, and add it again. For delayed mail, check network connectivity and the Outbox before recreating the profile.
+
+# Section 4: When to Contact Support
+Contact the Service Desk when account setup fails, synchronization remains stopped, or mailbox quota warnings persist. Forward suspicious messages using the approved phishing-report action and do not open unexpected attachments or links.

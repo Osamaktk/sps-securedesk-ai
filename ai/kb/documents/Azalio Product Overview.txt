@@ -1,0 +1,11 @@
+# Section 1: Overview
+Azalio is an SPS business application used by authorized teams for approved operational workflows. Availability and features depend on the user's assigned role, department, and environment.
+
+# Section 2: Steps
+Access Azalio through the approved SPS application portal, authenticate with the work identity, and select the correct environment. Confirm the displayed profile and role before creating or changing records. Follow departmental procedures for data entry and approvals.
+
+# Section 3: Common Issues
+Missing menus usually indicate a role mismatch or use of the wrong environment. Stale browser sessions can show outdated permissions. Sign out, clear the application session, and retry through the SPS portal. Do not create duplicate records as a workaround.
+
+# Section 4: When to Contact Support
+Contact Application Support for errors, missing features, workflow failures, or incorrect application data. Contact Identity and Access for approved role provisioning. Report suspicious records or unauthorized access to Security Operations.

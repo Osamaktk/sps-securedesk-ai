@@ -1,0 +1,12 @@
+- [x] Task 1: Audit AI service routes — Found multiple issues
+- [ ] Fix 1a: ai/main.py — Fix router prefixes and double-registration of chat
+- [ ] Fix 1b: ai/api/classifier.py — Change prefix /classifier → /classify
+- [ ] Fix 1c: ai/api/summariser.py — Change prefix /summariser → /summarise
+- [ ] Fix 1d: ai/schemas/classifier.py — Rename risk→risk_level, assigned_team→team
+- [ ] Fix 1e: ai/schemas/summariser.py — Fix schema to accept subject/description/timeline
+- [ ] Task 2: Frontend chatService.js — Fix path /chat → /api/chat
+- [ ] Task 3: Frontend-to-backend calls — Verify all paths
+- [ ] Task 4: Email worker — Fix classify_email URL, fix settings env var mismatch
+- [ ] Task 5: Docker networking — Fix email_worker defaults
+- [ ] Task 6: Run and verify everything
+- [ ] Deliver final numbered report

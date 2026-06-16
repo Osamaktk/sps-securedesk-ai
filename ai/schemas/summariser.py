@@ -1,19 +1,16 @@
 from pydantic import BaseModel, Field
 
 
-class TimelineItem(BaseModel):
-    event_type: str
-    content: str
-    created_at: str | None = None
+class SummariserMessage(BaseModel):
+    role: str = Field(min_length=1, max_length=64)
+    content: str = Field(min_length=1, max_length=20_000)
 
 
 class SummariserRequest(BaseModel):
     subject: str = Field(min_length=1, max_length=500)
-    description: str = Field(min_length=1, max_length=100_000)
-    timeline: list[TimelineItem] = Field(default_factory=list)
+    description: str = Field(min_length=1, max_length=20_000)
+    messages: list[SummariserMessage] = Field(default_factory=list, max_length=100)
 
 
 class SummariserResponse(BaseModel):
-    summary: str
-    key_points: list[str] = Field(default_factory=list)
-    provider: str | None = None
+    summary: str = Field(min_length=1, max_length=5_000)

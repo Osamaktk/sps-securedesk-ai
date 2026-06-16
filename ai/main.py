@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from ai.api import chat, classifier, kb, summariser
+from ai.api import chat, classifier, kb, summariser, tickets
 from ai.config.settings import get_settings
 from ai.services.kb_service import index_all_documents
 
@@ -28,6 +28,7 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(classifier.router, prefix="/api")
 app.include_router(summariser.router, prefix="/api")
 app.include_router(kb.router, prefix="/api")
+app.include_router(tickets.router, prefix="/api")
 
 
 @app.get("/health", tags=["health"])

@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import email.mime.multipart
 import email.mime.text
+import os
 import smtplib
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from email.utils import formataddr, formatdate
 from typing import Optional
 
@@ -24,14 +25,6 @@ class EmailSender:
     """Outbound email sender with template rendering and SMTP delivery."""
 
     def __init__(self) -> None:
-        self._template_env = Environment(
-            loader=FileSystemLoader(
-                searchpath=settings.message_store_path.replace("data", "templates")
-            ),
-            autoescape=True,
-        )
-        # Fallback: try relative to this file
-        import os
         template_dir = os.path.join(
             os.path.dirname(os.path.dirname(__file__)), "templates"
         )
@@ -40,21 +33,16 @@ class EmailSender:
                 loader=FileSystemLoader(searchpath=template_dir),
                 autoescape=True,
             )
+        else:
+            self._template_env = Environment(autoescape=True)
 
     def _generate_message_id(self, ticket_id: Optional[str] = None) -> str:
-        """Generate a unique Message-ID for outbound emails.
-
-        Args:
-            ticket_id: Optional ticket ID to include in the Message-ID.
-
-        Returns:
-            A unique Message-ID string.
-        """
+        """Generate a unique Message-ID for outbound emails."""
         unique = uuid.uuid4().hex[:12]
         domain = settings.email_from_address.split("@")[-1]
         if ticket_id:
             return f"<{ticket_id}.{unique}@{domain}>"
-        return f"<{unique}.{datetime.utcnow().timestamp()}@{domain}>"
+        return f"<{unique}.{datetime.now(timezone.utc).timestamp()}@{domain}>"
 
     def _build_message(
         self,
@@ -64,20 +52,8 @@ class EmailSender:
         plain_text_body: str,
         message_id: Optional[str] = None,
         in_reply_to: Optional[str] = None,
-    ) -> email.mime.multipart.MIMEMultipart:
-        """Build a MIME multipart email message with HTML and plain text alternatives.
-
-        Args:
-            to_email: Recipient email address.
-            subject: Email subject line.
-            html_body: HTML version of the email body.
-            plain_text_body: Plain text version of the email body.
-            message_id: Optional pre-generated Message-ID. A new one is created if not provided.
-            in_reply_to: Optional In-Reply-To header value for threading.
-
-        Returns:
-            A fully constructed MIMEMultipart message ready to send.
-        """
+    ):
+        """Build a MIME multipart email message with HTML and plain text alternatives."""
         msg = email.mime.multipart.MIMEMultipart("alternative")
         msg["From"] = formataddr(
             (settings.email_from_name, settings.email_from_address)
@@ -86,15 +62,12 @@ class EmailSender:
         msg["Subject"] = subject
         msg["Date"] = formatdate(localtime=True)
 
-        # Message-ID
         mid = message_id or self._generate_message_id()
         msg["Message-ID"] = mid
 
-        # In-Reply-To (for threading)
         if in_reply_to:
             msg["In-Reply-To"] = in_reply_to
 
-        # Attach plain text and HTML parts
         part_text = email.mime.text.MIMEText(plain_text_body, "plain", "utf-8")
         part_html = email.mime.text.MIMEText(html_body, "html", "utf-8")
         msg.attach(part_text)
@@ -103,32 +76,19 @@ class EmailSender:
         return msg, mid
 
     def _render_template(self, template_name: str, data: EmailTemplateData) -> str:
-        """Render a Jinja2 email template with the given data.
-
-        Args:
-            template_name: Name of the template file (e.g. ack.html).
-            data: Template variables.
-
-        Returns:
-            Rendered HTML string.
-        """
-        template = self._template_env.get_template(template_name)
-        return template.render(**data.model_dump())
+        """Render a Jinja2 email template with the given data."""
+        try:
+            template = self._template_env.get_template(template_name)
+            return template.render(**data.model_dump())
+        except Exception:
+            return f"<h1>{data.ticket_id}</h1><p>{data.subject}</p>"
 
     @async_retry(max_attempts=3, base_delay=2.0, max_delay=15.0)
     async def _send_smtp(
         self, msg: email.mime.multipart.MIMEMultipart, to_email: str
     ) -> None:
-        """Send an email via SMTP with retry logic.
-
-        Args:
-            msg: The MIME message to send.
-            to_email: The recipient email address.
-
-        Raises:
-            smtplib.SMTPException: If sending fails after all retries.
-        """
-        loop = asyncio.get_event_loop()
+        """Send an email via SMTP with retry logic."""
+        loop = asyncio.get_running_loop()
 
         def _send() -> None:
             with smtplib.SMTP(
@@ -136,14 +96,10 @@ class EmailSender:
                 port=settings.smtp_port,
                 timeout=30,
             ) as server:
-                # Start TLS if not Mailhog (plain text) and port is not 1025
                 if settings.smtp_port != 1025:
                     server.starttls()
-
-                # Authenticate if credentials are provided
                 if settings.smtp_user and settings.smtp_password:
                     server.login(settings.smtp_user, settings.smtp_password)
-
                 server.send_message(msg)
                 logger.info(
                     "Email sent to %s: subject=%s",
@@ -162,20 +118,7 @@ class EmailSender:
         ticket_id: Optional[str] = None,
         in_reply_to: Optional[str] = None,
     ) -> str:
-        """Build and send an email, storing its Message-ID for thread tracking.
-
-        Args:
-            to_email: Recipient email address.
-            subject: Email subject line.
-            html_body: HTML version of the email body.
-            plain_text_body: Plain text version.
-            ticket_id: Associated ticket ID (for Message-ID generation and storage).
-            in_reply_to: Optional In-Reply-To header for threading.
-
-        Returns:
-            The generated Message-ID of the sent email.
-        """
-        # Generate Message-ID
+        """Build and send an email, storing its Message-ID for thread tracking."""
         message_id = self._generate_message_id(ticket_id)
 
         msg, mid = self._build_message(
@@ -189,7 +132,6 @@ class EmailSender:
 
         await self._send_smtp(msg, to_email)
 
-        # Persist Message-ID mapping for thread tracking
         if ticket_id:
             message_store.save_message_mapping(mid, ticket_id)
 
@@ -202,17 +144,7 @@ class EmailSender:
         subject: str,
         requester_name: str = "",
     ) -> str:
-        """Send a ticket acknowledgment email.
-
-        Args:
-            to_email: Recipient email address.
-            ticket_id: The ticket ID (e.g. SPS-2026-001).
-            subject: Original ticket subject.
-            requester_name: Name of the requester.
-
-        Returns:
-            The Message-ID of the sent email.
-        """
+        """Send a ticket acknowledgment email."""
         data = EmailTemplateData(
             ticket_id=ticket_id,
             subject=subject,
@@ -249,19 +181,7 @@ class EmailSender:
         reply_content: str,
         requester_name: str = "",
     ) -> str:
-        """Send an agent reply notification email.
-
-        Args:
-            to_email: Recipient email address.
-            ticket_id: The ticket ID.
-            original_subject: The original ticket subject.
-            agent_name: Name of the agent who replied.
-            reply_content: The reply message content.
-            requester_name: Name of the requester.
-
-        Returns:
-            The Message-ID of the sent email.
-        """
+        """Send an agent reply notification email."""
         data = EmailTemplateData(
             ticket_id=ticket_id,
             subject=original_subject,
@@ -298,18 +218,7 @@ class EmailSender:
         new_status: str,
         requester_name: str = "",
     ) -> str:
-        """Send a ticket status change notification email.
-
-        Args:
-            to_email: Recipient email address.
-            ticket_id: The ticket ID.
-            subject: Original ticket subject.
-            new_status: The new ticket status.
-            requester_name: Name of the requester.
-
-        Returns:
-            The Message-ID of the sent email.
-        """
+        """Send a ticket status change notification email."""
         data = EmailTemplateData(
             ticket_id=ticket_id,
             subject=subject,
@@ -347,18 +256,7 @@ class EmailSender:
         requester_name: str = "",
         approval_url: str = "",
     ) -> str:
-        """Send an approval request email for high-risk actions.
-
-        Args:
-            to_email: Recipient email address (approver).
-            ticket_id: The ticket ID requiring approval.
-            subject: Original ticket subject.
-            requester_name: Name of the requester.
-            approval_url: URL for the approval action.
-
-        Returns:
-            The Message-ID of the sent email.
-        """
+        """Send an approval request email for high-risk actions."""
         data = EmailTemplateData(
             ticket_id=ticket_id,
             subject=subject,

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import email
 from typing import Optional, Set
 
 import aioimaplib
@@ -17,10 +16,10 @@ from email_worker.models.event_models import (
     TicketCreatePayload,
     TimelineEventPayload,
 )
+from email_worker.smtp.sender import EmailSender
 from email_worker.storage.message_store import message_store
 from email_worker.thread.resolver import resolve_thread
 from email_worker.utils.logger import logger
-from email_worker.utils.retry import async_retry
 
 
 def _soc_routing_rule(classify: ClassifyResponse) -> str:
@@ -49,6 +48,7 @@ class IMAPPoller:
     def __init__(
         self,
         ticket_client: Optional[TicketClient] = None,
+        email_sender: Optional[EmailSender] = None,
     ) -> None:
         self.host = settings.imap_host
         self.port = settings.imap_port
@@ -56,6 +56,7 @@ class IMAPPoller:
         self.password = settings.imap_password
         self.poll_interval = settings.imap_poll_interval_seconds
         self.ticket_client = ticket_client or TicketClient()
+        self.email_sender = email_sender or EmailSender()
         self._client: Optional[aioimaplib.IMAP4_SSL] = None
         self._running = False
         self._processed_uids: Set[str] = set()
@@ -104,7 +105,6 @@ class IMAPPoller:
             return self._client
 
         try:
-            # Check connection by sending a noop
             await self._client.noop()
         except (aioimaplib.AioimapException, OSError, EOFError):
             logger.warning("IMAP connection lost, reconnecting...")
@@ -116,7 +116,7 @@ class IMAPPoller:
 
         return self._client
 
-    async def _fetch_unseen_uids(self) -> list[str]:
+    async def _fetch_unseen_uids(self) -> list:
         """Fetch UIDs of unseen (unread) emails in the inbox.
 
         Returns:
@@ -137,7 +137,6 @@ class IMAPPoller:
 
         except (aioimaplib.AioimapException, OSError, EOFError) as e:
             logger.error("Failed to fetch unseen emails: %s", e)
-            # Reset client to force reconnect next time
             self._client = None
             return []
 
@@ -157,10 +156,8 @@ class IMAPPoller:
                 logger.warning("Failed to fetch UID %s: status=%s", uid, status)
                 return None
 
-            # aioimaplib returns tuples of (flags, body_bytes)
             for part in data:
                 if isinstance(part, tuple) and len(part) >= 1:
-                    # The second element is typically the raw email bytes
                     raw = part[1] if len(part) > 1 else part[0]
                     if isinstance(raw, bytes):
                         return raw
@@ -197,7 +194,6 @@ class IMAPPoller:
             email_data.subject,
         )
 
-        # Step 1: AI Classification
         classify = await self.ticket_client.classify_email(
             subject=email_data.subject,
             description=email_data.plain_text_body or email_data.html_body or "",
@@ -209,10 +205,8 @@ class IMAPPoller:
             classify.team,
         )
 
-        # Step 2: SOC Routing Rule
         team = _soc_routing_rule(classify)
 
-        # Step 3: Create ticket
         ticket_payload = TicketCreatePayload(
             subject=email_data.subject,
             description=email_data.plain_text_body or email_data.html_body or "",
@@ -235,17 +229,13 @@ class IMAPPoller:
             email_data.from_address,
         )
 
-        # Store the original email's Message-ID so replies can be tracked
         if email_data.message_id:
             message_store.save_message_mapping(
                 email_data.message_id, ticket_id
             )
 
-        # Step 4: Send acknowledgment email
         try:
-            from email_worker.smtp.sender import EmailSender
-            sender = EmailSender()
-            await sender.send_ack_email(
+            await self.email_sender.send_ack_email(
                 to_email=email_data.from_address,
                 ticket_id=ticket_id,
                 subject=email_data.subject,
@@ -285,7 +275,6 @@ class IMAPPoller:
             ticket_id, event_payload
         )
 
-        # Store the reply's Message-ID for future thread tracking
         if email_data.message_id:
             message_store.save_message_mapping(
                 email_data.message_id, ticket_id
@@ -312,7 +301,6 @@ class IMAPPoller:
         if not uids:
             return 0
 
-        # Filter already-processed UIDs within this session
         new_uids = [uid for uid in uids if uid not in self._processed_uids]
 
         if not new_uids:
@@ -335,13 +323,11 @@ class IMAPPoller:
                     self._processed_uids.add(uid)
                     continue
 
-                # Store message ID for the inbound email
                 if email_data.message_id:
                     message_store.save_message_mapping(
-                        email_data.message_id, "inbound"
+                        email_data.message_id, "pending"
                     )
 
-                # Resolve thread: new or reply
                 thread_type, ticket_id = resolve_thread(email_data)
 
                 if thread_type == "new":
@@ -363,7 +349,6 @@ class IMAPPoller:
                 logger.error(
                     "Error processing email UID %s: %s", uid, e, exc_info=True
                 )
-                # Still mark as seen to avoid repeated failures
                 try:
                     await self._mark_as_seen(uid)
                 except Exception:

@@ -1,13 +1,6 @@
 """SPS SecureDesk AI Email Pipeline — Main entry point.
 
 Runs the IMAP poller and backend event listener concurrently.
-
-Usage:
-    # From parent directory (recommended)
-    python -m email_worker.main
-
-    # From email_worker/ directory
-    cd email_worker && python main.py
 """
 
 from __future__ import annotations
@@ -41,9 +34,7 @@ async def start_imap_poller() -> None:
             "IMAP credentials not configured. Skipping IMAP poller. "
             "Set IMAP_HOST, IMAP_USER, and IMAP_PASSWORD in .env"
         )
-        # Keep the task alive but do nothing
-        while True:
-            await asyncio.sleep(3600)
+        await asyncio.Event().wait()
         return
 
     try:
@@ -108,7 +99,6 @@ async def main() -> None:
         asyncio.create_task(start_event_listener()),
     ]
 
-    # Wait for shutdown signal or task completion
     try:
         await asyncio.wait(
             tasks,

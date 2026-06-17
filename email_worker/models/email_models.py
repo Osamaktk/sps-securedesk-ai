@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class EmailAttachment(BaseModel):
@@ -30,18 +30,7 @@ class ParsedEmail(BaseModel):
     plain_text_body: str = ""
     html_body: str = ""
     attachments: List[EmailAttachment] = []
-    received_at: datetime = Field(default_factory=datetime.utcnow)
-
-
-class OutboundEmail(BaseModel):
-    """Payload for building and sending an outbound email."""
-
-    to_email: str
-    subject: str
-    html_body: str
-    plain_text_body: str
-    ticket_id: Optional[str] = None
-    message_id: Optional[str] = None
+    received_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class EmailTemplateData(BaseModel):
@@ -60,4 +49,4 @@ class EmailTemplateData(BaseModel):
     reply_content: str = ""
     portal_url: str = ""
     approval_url: str = ""
-    current_year: int = Field(default_factory=lambda: datetime.utcnow().year)
+    current_year: int = Field(default_factory=lambda: datetime.now(timezone.utc).year)

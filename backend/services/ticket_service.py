@@ -141,6 +141,23 @@ async def create_ticket(
                 created_at=created_at,
             )
         )
+
+        # If the ticket is high-risk, create an approval_required event so the
+        # email_worker can notify approvers.
+        if risk_level == RiskLevel.HIGH:
+            db.add(
+                TimelineEvent(
+                    ticket_id=ticket.id,
+                    event_type=TimelineEventType.APPROVAL_REQUESTED,
+                    actor_id=actor.id if actor else None,
+                    actor_email=actor.email if actor else payload.requester_email,
+                    content=f"High-risk ticket {ticket.ticket_number} requires approval",
+                    is_public=False,
+                    channel="system",
+                    created_at=created_at,
+                )
+            )
+
         await write_audit_log(
             db,
             ticket_id=ticket.id,

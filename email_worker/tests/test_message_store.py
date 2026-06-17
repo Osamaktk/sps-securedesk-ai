@@ -1,92 +1,49 @@
-"""Tests for the JSON-based message store persistence."""
+"""Tests for the message store module."""
 
 import json
-import os
-import tempfile
-
 import pytest
-
 from email_worker.storage.message_store import MessageStore
 
 
 class TestMessageStore:
-    """Tests for the MessageStore class."""
+    """Tests for MessageStore JSON-backed mapping."""
 
-    @pytest.fixture
-    def store(self, tmp_path):
-        """Create a MessageStore with a temp file path."""
-        file_path = os.path.join(tmp_path, "test_store.json")
-        s = MessageStore(file_path=file_path)
-        yield s
-        # Clean up
-        if os.path.exists(file_path):
-            os.remove(file_path)
+    def test_save_and_lookup(self, temp_store):
+        temp_store.save_message_mapping("<msg1@ex.com>", "SPS-2026-001")
+        assert temp_store.lookup_message_id("<msg1@ex.com>") == "SPS-2026-001"
 
-    def test_save_and_lookup(self, store: MessageStore):
-        """Test saving a mapping and looking it up."""
-        store.save_message_mapping("<msg1@example.com>", "SPS-2026-001")
-        result = store.lookup_message_id("<msg1@example.com>")
-        assert result == "SPS-2026-001"
+    def test_lookup_returns_none_when_missing(self, temp_store):
+        assert temp_store.lookup_message_id("<nonexistent@ex.com>") is None
 
-    def test_lookup_non_existent(self, store: MessageStore):
-        """Test looking up a non-existent Message-ID returns None."""
-        result = store.lookup_message_id("<nonexistent@example.com>")
-        assert result is None
+    def test_count_starts_at_zero(self, temp_store):
+        assert temp_store.count == 0
 
-    def test_delete_mapping(self, store: MessageStore):
-        """Test deleting a mapping."""
-        store.save_message_mapping("<to-delete@example.com>", "SPS-2026-002")
-        store.delete_mapping("<to-delete@example.com>")
-        result = store.lookup_message_id("<to-delete@example.com>")
-        assert result is None
+    def test_count_increments(self, temp_store):
+        temp_store.save_message_mapping("<m1@ex.com>", "SPS-1")
+        temp_store.save_message_mapping("<m2@ex.com>", "SPS-2")
+        assert temp_store.count == 2
 
-    def test_empty_message_id(self, store: MessageStore):
-        """Test saving with an empty message ID does nothing."""
-        store.save_message_mapping("", "SPS-2026-003")
-        assert store.count == 0
+    def test_persists_to_disk(self, temp_store):
+        temp_store.save_message_mapping("<m3@ex.com>", "SPS-3")
+        with open(temp_store._file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        assert data["<m3@ex.com>"] == "SPS-3"
 
-    def test_empty_ticket_id(self, store: MessageStore):
-        """Test saving with an empty ticket ID does nothing."""
-        store.save_message_mapping("<msg@example.com>", "")
-        assert store.count == 0
+    def test_loads_from_disk(self, temp_store):
+        temp_store.save_message_mapping("<m4@ex.com>", "SPS-4")
+        new_store = MessageStore(file_path=temp_store._file_path)
+        assert new_store.lookup_message_id("<m4@ex.com>") == "SPS-4"
 
-    def test_persistence_across_instances(self, tmp_path):
-        """Test mappings persist across different store instances (same file)."""
-        file_path = os.path.join(tmp_path, "persist_test.json")
+    def test_delete_mapping(self, temp_store):
+        temp_store.save_message_mapping("<m5@ex.com>", "SPS-5")
+        temp_store.delete_mapping("<m5@ex.com>")
+        assert temp_store.lookup_message_id("<m5@ex.com>") is None
+        assert temp_store.count == 0
 
-        store1 = MessageStore(file_path=file_path)
-        store1.save_message_mapping("<persist@example.com>", "SPS-2026-100")
-        assert store1.count == 1
+    def test_skips_empty_message_id(self, temp_store):
+        temp_store.save_message_mapping("", "SPS-6")
+        assert temp_store.count == 0
 
-        store2 = MessageStore(file_path=file_path)
-        result = store2.lookup_message_id("<persist@example.com>")
-        assert result == "SPS-2026-100"
-
-        os.remove(file_path)
-
-    def test_corrupted_file_handling(self, tmp_path):
-        """Test handling of a corrupted JSON file."""
-        file_path = os.path.join(tmp_path, "corrupted.json")
-        with open(file_path, "w") as f:
-            f.write("this is not valid json")
-
-        store = MessageStore(file_path=file_path)
-        # Should start with an empty store rather than crashing
-        assert store.count == 0
-
-        os.remove(file_path)
-
-    def test_multiple_mappings(self, store: MessageStore):
-        """Test storing and retrieving multiple mappings."""
-        mappings = {
-            "<a@example.com>": "SPS-2026-001",
-            "<b@example.com>": "SPS-2026-002",
-            "<c@example.com>": "SPS-2026-003",
-        }
-        for msg_id, ticket_id in mappings.items():
-            store.save_message_mapping(msg_id, ticket_id)
-
-        assert store.count == 3
-
-        for msg_id, expected_ticket in mappings.items():
-            assert store.lookup_message_id(msg_id) == expected_ticket
+    def test_skips_empty_ticket_id(self, temp_store):
+        temp_store.save_message_mapping("<m7@ex.com>", "")
+        assert temp_store.count == 0

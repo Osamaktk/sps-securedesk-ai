@@ -1,1 +1,1 @@
-"""IMAP polling and email parsing modules."""
+"""IMAP inbound email polling and parsing modules."""

@@ -3,7 +3,7 @@
 import asyncio
 import functools
 import logging
-from typing import Any, Callable, Optional, Type, Union
+from typing import Any, Callable, Optional
 
 logger = logging.getLogger(__name__)
 

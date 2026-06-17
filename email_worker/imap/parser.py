@@ -38,7 +38,7 @@ def _decode_mime_header(value: str) -> str:
     return " ".join(result)
 
 
-def _get_body_from_message(msg: Message) -> tuple[str, str, list[EmailAttachment]]:
+def _get_body_from_message(msg: Message) -> tuple:
     """Extract plain text, HTML body, and attachments from an email message.
 
     Args:
@@ -58,7 +58,6 @@ def _get_body_from_message(msg: Message) -> tuple[str, str, list[EmailAttachment
                 part.get("Content-Disposition", "")
             ).lower()
 
-            # Skip attachments
             if "attachment" in content_disposition:
                 filename = part.get_filename()
                 if filename:
@@ -90,7 +89,6 @@ def _get_body_from_message(msg: Message) -> tuple[str, str, list[EmailAttachment
             elif content_type == "text/html":
                 html_text += decoded
     else:
-        # Single part message
         content_type = msg.get_content_type()
         charset = msg.get_content_charset() or "utf-8"
         payload = msg.get_payload(decode=True)
@@ -129,7 +127,6 @@ def parse_email(raw_email: bytes) -> Optional[ParsedEmail]:
         logger.error("Failed to parse MIME email: %s", e)
         return None
 
-    # Extract headers
     message_id = _decode_mime_header(msg.get("Message-ID", "")).strip()
     in_reply_to_raw = msg.get("In-Reply-To", "")
     in_reply_to = _decode_mime_header(in_reply_to_raw).strip() if in_reply_to_raw else None
@@ -143,10 +140,8 @@ def parse_email(raw_email: bytes) -> Optional[ParsedEmail]:
         logger.warning("Email is missing 'From' header, skipping")
         return None
 
-    # Extract body and attachments
     plain_text, html_text, attachments = _get_body_from_message(msg)
 
-    # Clean up email address: sometimes it's "Name <email>" format
     email_match = re.search(r"<([^>]+)>", from_address)
     if email_match:
         from_address_clean = email_match.group(1)

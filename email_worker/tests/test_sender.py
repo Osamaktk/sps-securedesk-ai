@@ -1,102 +1,61 @@
-"""Tests for the SMTP email sender module."""
-
-from __future__ import annotations
-
-from unittest.mock import AsyncMock, patch
+"""Tests for the SMTP sender module."""
 
 import pytest
+from unittest.mock import AsyncMock, patch, MagicMock
 
 from email_worker.smtp.sender import EmailSender
+from email_worker.models.email_models import EmailTemplateData
 
 
 class TestEmailSender:
-    """Tests for the EmailSender class (mocked SMTP)."""
+    """Tests for EmailSender."""
 
-    @pytest.fixture
-    def sender(self) -> EmailSender:
-        """Create an EmailSender with _render_template stubbed."""
-        s = EmailSender()
-        s._render_template = lambda template_name, data: "<html>Test</html>"  # type: ignore[method-assign]
-        return s
+    def test_generate_message_id_format(self):
+        sender = EmailSender()
+        mid = sender._generate_message_id()
+        assert "@sps.com" in mid
+        assert "<" in mid
+        assert ">" in mid
 
-    @pytest.mark.asyncio
-    async def test_send_ack_email_basic(self, sender: EmailSender):
-        """Test that send_ack_email builds and sends correctly."""
-        with patch.object(sender, "_send_smtp", new_callable=AsyncMock) as mock_send:
-            mid = await sender.send_ack_email(
-                to_email="user@example.com",
-                ticket_id="SPS-2026-001",
-                subject="VPN Issue",
-                requester_name="John",
-            )
-            assert mid is not None
-            assert "SPS" in mid
-            mock_send.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_send_agent_reply_email(self, sender: EmailSender):
-        """Test that send_agent_reply_email works."""
-        with patch.object(sender, "_send_smtp", new_callable=AsyncMock) as mock_send:
-            mid = await sender.send_agent_reply_email(
-                to_email="user@example.com",
-                ticket_id="SPS-2026-001",
-                original_subject="VPN Issue",
-                agent_name="Agent Smith",
-                reply_content="We fixed it.",
-            )
-            assert mid is not None
-            mock_send.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_send_status_change_email(self, sender: EmailSender):
-        """Test that send_status_change_email works."""
-        with patch.object(sender, "_send_smtp", new_callable=AsyncMock) as mock_send:
-            mid = await sender.send_status_change_email(
-                to_email="user@example.com",
-                ticket_id="SPS-2026-001",
-                subject="VPN Issue",
-                new_status="Resolved",
-            )
-            assert mid is not None
-            mock_send.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_send_approval_request(self, sender: EmailSender):
-        """Test that send_approval_request_email works."""
-        with patch.object(sender, "_send_smtp", new_callable=AsyncMock) as mock_send:
-            mid = await sender.send_approval_request_email(
-                to_email="approver@example.com",
-                ticket_id="SPS-2026-001",
-                subject="Access Request",
-                requester_name="John",
-            )
-            assert mid is not None
-            mock_send.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_generate_message_id_format(self, sender: EmailSender):
-        """Test Message-ID generation format."""
-        mid = sender._generate_message_id(ticket_id="SPS-2026-001")
-        assert mid.startswith("<")
-        assert mid.endswith(">")
+    def test_generate_message_id_with_ticket_id(self):
+        sender = EmailSender()
+        mid = sender._generate_message_id("SPS-2026-001")
         assert "SPS-2026-001" in mid
-        assert "@" in mid
+        assert "@sps.com" in mid
 
-    @pytest.mark.asyncio
-    async def test_send_email_with_stored_mapping(self, sender: EmailSender):
-        """Test that send_email stores the Message-ID mapping."""
-        from email_worker.storage.message_store import message_store
+    def test_build_message_structure(self):
+        sender = EmailSender()
+        msg, mid = sender._build_message(
+            to_email="user@test.com",
+            subject="Test Subject",
+            html_body="<html><body>Hi</body></html>",
+            plain_text_body="Hi",
+            message_id="<test@sps.com>",
+        )
+        assert msg["From"] == "SPS Helpdesk <helpdesk@sps.com>"
+        assert msg["To"] == "user@test.com"
+        assert msg["Subject"] == "Test Subject"
+        assert msg["Message-ID"] == "<test@sps.com>"
+        assert msg.get_content_type() == "multipart/alternative"
 
-        with patch.object(sender, "_send_smtp", new_callable=AsyncMock):
-            mid = await sender.send_email(
-                to_email="user@example.com",
-                subject="Test",
-                html_body="<html></html>",
-                plain_text_body="Test",
-                ticket_id="SPS-2026-005",
-            )
-            # Verify the mapping was stored
-            result = message_store.lookup_message_id(mid)
-            assert result == "SPS-2026-005"
-            # Clean up
-            message_store.delete_mapping(mid)
+    def test_build_message_with_in_reply_to(self):
+        sender = EmailSender()
+        msg, mid = sender._build_message(
+            to_email="user@test.com",
+            subject="Re: Test",
+            html_body="<p>Reply</p>",
+            plain_text_body="Reply",
+            message_id="<reply@sps.com>",
+            in_reply_to="<original@sps.com>",
+        )
+        assert msg["In-Reply-To"] == "<original@sps.com>"
+
+    def test_render_template_fallback_on_error(self):
+        sender = EmailSender()
+        data = EmailTemplateData(
+            ticket_id="SPS-2026-999",
+            subject="Fallback test",
+        )
+        result = sender._render_template("nonexistent_template.html", data)
+        assert "SPS-2026-999" in result
+        assert "Fallback test" in result

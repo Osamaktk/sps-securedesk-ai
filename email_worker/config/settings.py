@@ -75,7 +75,7 @@ class Settings:
     def is_mailhog(self) -> bool:
         """Detect if we are using Mailhog (localhost:1025 with no auth)."""
         return (
-            (self.smtp_host == "localhost" or self.smtp_host == "mailhog")
+            self.smtp_host == "mailhog"
             and self.smtp_port == 1025
             and not self.smtp_user
         )

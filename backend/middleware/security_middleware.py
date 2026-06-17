@@ -1,4 +1,6 @@
+import logging
 import re
+import traceback
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -9,6 +11,8 @@ from starlette.responses import JSONResponse, Response
 
 from database import AsyncSessionLocal
 from services.audit_service import write_audit_log
+
+logger = logging.getLogger("sps.security_middleware")
 
 INJECTION_PATTERNS = ("SELECT ", "DROP ", "INSERT ", "DELETE ", "UNION ", "--", "XP_")
 SECRET_PATTERNS = (
@@ -101,28 +105,33 @@ async def check_security_threats(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
-    if not _should_scan_body(request):
+    try:
+        if not _should_scan_body(request):
+            return await call_next(request)
+
+        body = await request.body()
+        body_text = body.decode("utf-8", errors="ignore")
+
+        injection_pattern = _detect_injection(body_text)
+        if injection_pattern:
+            await log_security_event(
+                action="security.injection_attempt",
+                request=request,
+                details={"pattern": injection_pattern, "method": request.method},
+            )
+            return JSONResponse(status_code=400, content={"detail": "Invalid request"})
+
+        secret_pattern = _detect_secret(body_text, request.url.path)
+        if secret_pattern:
+            await log_security_event(
+                action="security.secret_detected",
+                request=request,
+                details={"pattern": secret_pattern, "method": request.method},
+            )
+            return JSONResponse(status_code=400, content={"detail": "Sensitive values are not allowed in request body"})
+
         return await call_next(request)
-
-    body = await request.body()
-    body_text = body.decode("utf-8", errors="ignore")
-
-    injection_pattern = _detect_injection(body_text)
-    if injection_pattern:
-        await log_security_event(
-            action="security.injection_attempt",
-            request=request,
-            details={"pattern": injection_pattern, "method": request.method},
-        )
-        return JSONResponse(status_code=400, content={"detail": "Invalid request"})
-
-    secret_pattern = _detect_secret(body_text, request.url.path)
-    if secret_pattern:
-        await log_security_event(
-            action="security.secret_detected",
-            request=request,
-            details={"pattern": secret_pattern, "method": request.method},
-        )
-        return JSONResponse(status_code=400, content={"detail": "Sensitive values are not allowed in request body"})
-
-    return await call_next(request)
+    except Exception:
+        logging.exception("Unhandled exception in security_middleware.check_security_threats")
+        traceback.print_exc()
+        return await call_next(request)

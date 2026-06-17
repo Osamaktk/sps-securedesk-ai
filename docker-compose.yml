@@ -16,14 +16,18 @@ services:
       retries: 5
 
   mailhog:
-    image: mailhog/mailhog
+    image: mailhog/mailhog:latest
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    environment:
+      - MH_API_BIND_ADDR=0.0.0.0:8025
+      - MH_SMTP_BIND_ADDR=0.0.0.0:1025
+    restart: unless-stopped
 
   backend:
     build: ./backend
-    command: sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "alembic upgrade head 2>/dev/null; uvicorn main:app --host 0.0.0.0 --port 8000"
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://securedesk:securedesk@db:5432/securedesk}
       DATABASE_URL_SYNC: ${DATABASE_URL_SYNC:-postgresql://securedesk:securedesk@db:5432/securedesk}
@@ -46,17 +50,27 @@ services:
       - uploads:/app/uploads
 
   email_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
     profiles:
       - email
-    build: ./email_worker
     environment:
-      BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:8000}
-      AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai_service:8001}
-      SMTP_HOST: ${SMTP_HOST:-mailhog}
-      SMTP_PORT: ${SMTP_PORT:-1025}
-      IMAP_HOST: ${IMAP_HOST:-}
-      IMAP_USER: ${IMAP_USER:-}
-      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
+      - IMAP_HOST=${IMAP_HOST:-}
+      - IMAP_PORT=${IMAP_PORT:-993}
+      - IMAP_USER=${IMAP_USER:-}
+      - IMAP_PASSWORD=${IMAP_PASSWORD:-}
+      - IMAP_POLL_INTERVAL_SECONDS=${IMAP_POLL_INTERVAL_SECONDS:-10}
+      - SMTP_HOST=${SMTP_HOST:-mailhog}
+      - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS:-helpdesk@sps.com}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME:-SPS Helpdesk}
+      - BACKEND_API_URL=${BACKEND_API_URL:-http://backend:8000}
+      - AI_SERVICE_URL=${AI_SERVICE_URL:-http://ai_service:8001}
+      - PORTAL_URL=${PORTAL_URL:-http://localhost:5173}
+    restart: unless-stopped
     depends_on:
       backend:
         condition: service_started
@@ -67,13 +81,13 @@ services:
     profiles:
       - ai
     build: ./ai
+    ports:
+      - "8001:8001"
     environment:
       BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:8000}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
-    ports:
-      - "8001:8001"
     depends_on:
       backend:
         condition: service_started

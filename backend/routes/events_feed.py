@@ -1,0 +1,216 @@
+"""GET /events/email — Polling feed for the email_worker outbound notification system.
+
+The email_worker calls this endpoint every ~10 seconds to discover new events
+that require an outbound email to be sent (e.g. ticket created, agent reply,
+status change, approval required).
+
+Auth decision: This endpoint requires NO authentication (no JWT/API key).
+Rationale: it only returns non-sensitive notification trigger metadata
+(requester_email, subject, ticket_id), which the email_worker already knows
+through other means (it created the event in many cases). Adding an API key
+would require the email_worker to securely store and rotate it, adding
+complexity with minimal security gain for this capstone project.
+
+In production, you should add an X-Internal-Api-Key header check using an
+environment variable shared between the backend and email_worker containers.
+"""
+
+import json
+import uuid
+from typing import Any
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from database import get_db
+from models.ticket import RiskLevel, Ticket, TicketStatus
+from models.timeline_event import TimelineEvent, TimelineEventType
+from models.user import User, UserRole
+
+router = APIRouter(tags=["events"])
+
+EVENT_TYPE_MAP: dict[TimelineEventType, str] = {
+    TimelineEventType.TICKET_CREATED: "ticket_created",
+    TimelineEventType.AGENT_REPLY_PORTAL: "agent_reply",
+    TimelineEventType.STATUS_CHANGE: "status_changed",
+    TimelineEventType.APPROVAL_REQUESTED: "approval_required",
+}
+
+# The event_types we should forward to the email_worker
+FORWARDED_EVENT_TYPES = {
+    TimelineEventType.TICKET_CREATED,
+    TimelineEventType.AGENT_REPLY_PORTAL,
+    TimelineEventType.STATUS_CHANGE,
+    TimelineEventType.APPROVAL_REQUESTED,
+}
+
+APPROVER_ROLES = {UserRole.SECURITY_ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATOR}
+
+
+def _build_event_data(event: TimelineEvent, ticket: Ticket) -> dict[str, Any]:
+    """Build the 'data' sub-dict for the email_worker event, keyed by event_type.
+
+    Args:
+        event: The timeline event row.
+        ticket: The parent ticket with relationships loaded.
+
+    Returns:
+        A dict containing requester_email, requester_name, subject,
+        plus type-specific fields.
+    """
+    requester_name = (
+        ticket.requester.full_name if ticket.requester else ticket.requester_email
+    )
+    base = {
+        "requester_email": ticket.requester_email,
+        "requester_name": requester_name,
+        "subject": ticket.subject,
+    }
+
+    mapped_type = EVENT_TYPE_MAP.get(event.event_type, "")
+
+    if mapped_type == "agent_reply":
+        base["agent_name"] = event.actor_email or "Support Agent"
+        base["content"] = event.content or ""
+
+    elif mapped_type == "status_changed":
+        # The event content is JSON with changes like {"status": {"from": "open", "to": "resolved"}}
+        try:
+            changes = json.loads(event.content) if event.content else {}
+            if "status" in changes:
+                base["new_status"] = changes["status"].get("to", "Updated")
+            else:
+                base["new_status"] = "Updated"
+        except (json.JSONDecodeError, TypeError):
+            base["new_status"] = "Updated"
+
+    elif mapped_type == "approval_required":
+        # Query users with approver roles for the approver email
+        # In production, you might want to send to all approvers or a round-robin.
+        # For simplicity, we pick the first non-intern approver found.
+        pass  # handled separately below
+
+    return base
+
+
+def _build_event_output(
+    event: TimelineEvent,
+    ticket: Ticket,
+    approver_email: str = "",
+) -> dict[str, Any]:
+    """Build the full event dict as expected by email_worker.
+
+    Args:
+        event: The timeline event row.
+        ticket: The parent ticket with relationships loaded.
+        approver_email: Pre-resolved approver email (only used for approval_required).
+
+    Returns:
+        An event dict matching the contract in email_worker/notifications/event_listener.py.
+    """
+    data = _build_event_data(event, ticket)
+    mapped_type = EVENT_TYPE_MAP.get(event.event_type, "")
+
+    if mapped_type == "approval_required" and approver_email:
+        data["approver_email"] = approver_email
+        data["approval_url"] = (
+            f"http://localhost:5173/tickets/{ticket.id}/approve"
+        )
+
+    return {
+        "id": str(event.id),
+        "event_type": mapped_type,
+        "ticket_id": str(event.ticket_id),
+        "data": data,
+    }
+
+
+@router.get("/events/email")
+async def email_events_feed(
+    db: AsyncSession = Depends(get_db),
+    since_event_id: str | None = Query(
+        None,
+        alias="since_event_id",
+        description="Return only events newer than this UUID (sequential by created_at)",
+    ),
+) -> list[dict[str, Any]]:
+    """Return email events that the email_worker needs to send notifications for.
+
+    This is the endpoint the email_worker polls every ~10 seconds.
+    It returns only events that should trigger an outbound email.
+
+    Strategy: cursor-based. The email_worker passes `since_event_id` (the last
+    event ID it processed) and we return everything newer. This is simpler than
+    a delivery-tracking column, but means if the email_worker restarts and loses
+    its in-memory `_last_event_id`, it may re-process old events on the next poll.
+    The email_worker's own `_processed_event_ids` set handles dedup within a
+    session; a production-grade alternative would add a `delivered_at` or
+    `email_sent` boolean column on the timeline_event table.
+    """
+    # Build query for events that should trigger email notifications
+    query = (
+        select(TimelineEvent)
+        .options(
+            selectinload(TimelineEvent.ticket).selectinload(Ticket.requester),
+            selectinload(TimelineEvent.ticket).selectinload(Ticket.timeline_events),
+        )
+        .where(TimelineEvent.event_type.in_(FORWARDED_EVENT_TYPES))
+        .order_by(TimelineEvent.created_at.asc(), TimelineEvent.id.asc())
+    )
+
+    # Cursor: find events newer than the given ID
+    if since_event_id:
+        try:
+            cursor_uuid = uuid.UUID(since_event_id)
+            cursor_event = await db.get(TimelineEvent, cursor_uuid)
+            if cursor_event:
+                query = query.where(
+                    TimelineEvent.created_at > cursor_event.created_at
+                )
+        except (ValueError, AttributeError):
+            # Invalid UUID; ignore the cursor and return all
+            pass
+
+    result = await db.execute(query)
+    events = result.scalars().all()
+
+    # Pre-resolve approver emails once if there are any approval_required events
+    approver_emails: dict[uuid.UUID, str] = {}
+    for ev in events:
+        if ev.event_type == TimelineEventType.APPROVAL_REQUESTED:
+            ticket_id = ev.ticket_id
+            if ticket_id not in approver_emails:
+                # Query users with approver roles
+                approver_result = await db.execute(
+                    select(User).where(User.role.in_(APPROVER_ROLES), User.is_active.is_(True))
+                )
+                approvers = approver_result.scalars().all()
+                # Pick the first approver found; in production you might send to all
+                first_approver = next(iter(approvers), None)
+                approver_emails[ticket_id] = (
+                    first_approver.email if first_approver else ""
+                )
+
+    output = []
+    for ev in events:
+        ticket = ev.ticket
+        if not ticket:
+            continue
+
+        # For agent_reply_portal: only forward public replies
+        if ev.event_type == TimelineEventType.AGENT_REPLY_PORTAL and not ev.is_public:
+            continue
+
+        mapped_type = EVENT_TYPE_MAP.get(ev.event_type, "")
+        if not mapped_type:
+            continue
+
+        approver_email = ""
+        if mapped_type == "approval_required":
+            approver_email = approver_emails.get(ev.ticket_id, "")
+
+        output.append(_build_event_output(ev, ticket, approver_email))
+
+    return output

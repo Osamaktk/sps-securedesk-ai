@@ -17,35 +17,46 @@ from email_worker.utils.retry import async_retry
 
 
 class TicketClient:
-    """Async HTTP client for interacting with the backend ticket API."""
+    """Async HTTP client for interacting with the backend ticket API
+    and the AI classification service.
 
-    def __init__(self, base_url: Optional[str] = None) -> None:
-        self.base_url = (base_url or settings.backend_api_url).rstrip("/")
-        self._client: Optional[httpx.AsyncClient] = None
-        # Separate client for AI classification service
-        self._ai_base_url = (settings.ai_service_url).rstrip("/")
+    Uses two separate HTTP clients:
+    - backend_client: pointed at backend_api_url for tickets, events, etc.
+    - ai_client: pointed at ai_service_url for email classification.
+    """
+
+    def __init__(
+        self,
+        backend_url: Optional[str] = None,
+        ai_url: Optional[str] = None,
+    ) -> None:
+        self.backend_url = (backend_url or settings.backend_api_url).rstrip("/")
+        self.ai_url = (ai_url or settings.ai_service_url).rstrip("/")
+        self._backend_client: Optional[httpx.AsyncClient] = None
         self._ai_client: Optional[httpx.AsyncClient] = None
 
-    async def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
-                base_url=self.base_url,
+    async def _get_backend_client(self) -> httpx.AsyncClient:
+        """Get or create the HTTP client for the backend API."""
+        if self._backend_client is None or self._backend_client.is_closed:
+            self._backend_client = httpx.AsyncClient(
+                base_url=self.backend_url,
                 timeout=httpx.Timeout(30.0),
             )
-        return self._client
+        return self._backend_client
 
     async def _get_ai_client(self) -> httpx.AsyncClient:
+        """Get or create the HTTP client for the AI service."""
         if self._ai_client is None or self._ai_client.is_closed:
             self._ai_client = httpx.AsyncClient(
-                base_url=self._ai_base_url,
+                base_url=self.ai_url,
                 timeout=httpx.Timeout(30.0),
             )
         return self._ai_client
 
     async def close(self) -> None:
-        """Close the underlying HTTP client."""
-        if self._client and not self._client.is_closed:
-            await self._client.aclose()
+        """Close all underlying HTTP clients."""
+        if self._backend_client and not self._backend_client.is_closed:
+            await self._backend_client.aclose()
         if self._ai_client and not self._ai_client.is_closed:
             await self._ai_client.aclose()
 
@@ -62,7 +73,7 @@ class TicketClient:
         Raises:
             httpx.HTTPError: If the API request fails after retries.
         """
-        client = await self._get_client()
+        client = await self._get_backend_client()
         logger.info(
             "Creating ticket: subject=%s, from=%s",
             payload.subject,
@@ -87,7 +98,7 @@ class TicketClient:
         Returns:
             The API response as a dictionary.
         """
-        client = await self._get_client()
+        client = await self._get_backend_client()
         logger.info(
             "Appending event to ticket %s: event_type=%s",
             ticket_id,
@@ -108,7 +119,10 @@ class TicketClient:
     async def classify_email(
         self, subject: str, description: str
     ) -> ClassifyResponse:
-        """Classify an email via the AI classification endpoint.
+        """Classify an email via the AI classification service.
+
+        Calls POST /api/classify on the AI service (ai_service:8001),
+        NOT on the backend API.
 
         Args:
             subject: The email subject.
@@ -117,11 +131,11 @@ class TicketClient:
         Returns:
             A ClassifyResponse with category, priority, and team.
         """
-        ai_client = await self._get_ai_client()
+        client = await self._get_ai_client()
         logger.info(
-            "Classifying email via AI service: subject=%s", subject
+            "Classifying email (via AI service): subject=%s", subject
         )
-        response = await ai_client.post(
+        response = await client.post(
             "/api/classify",
             json={"subject": subject, "description": description},
         )
@@ -132,7 +146,7 @@ class TicketClient:
     @async_retry(max_attempts=3, base_delay=1.0)
     async def fetch_events(
         self, last_event_id: Optional[str] = None
-    ) -> list[Dict[str, Any]]:
+    ) -> list:
         """Fetch email events from the backend events feed.
 
         Args:
@@ -141,13 +155,13 @@ class TicketClient:
         Returns:
             A list of event dictionaries.
         """
-        client = await self._get_client()
+        client = await self._get_backend_client()
         params: Dict[str, str] = {}
         if last_event_id:
             params["after"] = last_event_id
         response = await client.get("/events/email", params=params)
         response.raise_for_status()
-        events: list[Dict[str, Any]] = response.json()
+        events: list = response.json()
         return events
 
     async def health_check(self) -> bool:
@@ -157,7 +171,7 @@ class TicketClient:
             True if the backend responds successfully.
         """
         try:
-            client = await self._get_client()
+            client = await self._get_backend_client()
             response = await client.get("/health")
             return response.status_code < 500
         except Exception as e:

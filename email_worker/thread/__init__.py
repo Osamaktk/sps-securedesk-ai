@@ -1,1 +1,1 @@
-"""Thread resolution module for detecting ticket replies vs. new emails."""
+"""Thread resolution modules."""

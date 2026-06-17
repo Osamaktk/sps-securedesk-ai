@@ -1,16 +1,36 @@
+import logging
 import os
+import sys
+import traceback
 from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy import select
 
 import models  # noqa: F401
-from database import Base, DATABASE_URL, engine
+from database import AsyncSessionLocal, Base, DATABASE_URL, engine
 from middleware.security_middleware import check_security_threats
-from routes import approvals_router, attachments_router, auth_router, events_router, reports_router, tickets_router
+from models.user import User, UserRole
+from routes import approvals_router, attachments_router, auth_router, events_feed_router, events_router, reports_router, tickets_router
+from services.auth_service import hash_password
+
+logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
+logger = logging.getLogger("sps.main")
 
 load_dotenv()
+
+
+DEFAULT_USERS = [
+    {"email": "intern@sps.com", "full_name": "Intern User", "password": "Test1234!", "role": UserRole.INTERN},
+    {"email": "employee@sps.com", "full_name": "Employee User", "password": "Test1234!", "role": UserRole.EMPLOYEE},
+    {"email": "agent@sps.com", "full_name": "Agent User", "password": "Test1234!", "role": UserRole.AGENT},
+    {"email": "secadmin@sps.com", "full_name": "Security Admin", "password": "Test1234!", "role": UserRole.SECURITY_ADMIN},
+    {"email": "manager@sps.com", "full_name": "Manager User", "password": "Test1234!", "role": UserRole.MANAGER},
+    {"email": "admin@sps.com", "full_name": "Administrator", "password": "Test1234!", "role": UserRole.ADMINISTRATOR},
+]
 
 
 def _cors_origins() -> list[str]:
@@ -43,6 +63,7 @@ app.middleware("http")(check_security_threats)
 app.include_router(auth_router)
 app.include_router(tickets_router)
 app.include_router(events_router)
+app.include_router(events_feed_router)
 app.include_router(attachments_router)
 app.include_router(approvals_router)
 app.include_router(reports_router)
@@ -51,9 +72,40 @@ app.include_router(reports_router)
 @app.on_event("startup")
 async def on_startup() -> None:
     Path(os.getenv("UPLOAD_DIR", "./uploads")).mkdir(parents=True, exist_ok=True)
-    if os.getenv("ENVIRONMENT", "development") == "development" and DATABASE_URL.startswith("sqlite"):
-        async with engine.begin() as connection:
-            await connection.run_sync(Base.metadata.create_all)
+
+    # Seed default test users if they don't exist
+    # Tables are created by alembic via the docker-compose command, so we only seed data here.
+    try:
+        async with AsyncSessionLocal() as session:
+            try:
+                await session.execute(text("SELECT 1 FROM users LIMIT 1"))
+            except Exception:
+                logger.warning("Users table not accessible yet (alembic may still be running), skipping seed")
+                return
+
+            seeded_count = 0
+            for user_data in DEFAULT_USERS:
+                existing = await session.scalar(
+                    select(User).where(User.email == user_data["email"])
+                )
+                if existing:
+                    continue
+                user = User(
+                    email=user_data["email"],
+                    full_name=user_data["full_name"],
+                    hashed_password=hash_password(user_data["password"]),
+                    role=user_data["role"],
+                )
+                session.add(user)
+                seeded_count += 1
+            await session.commit()
+            if seeded_count > 0:
+                logger.info("Seeded %d default test users", seeded_count)
+            else:
+                logger.info("Default test users already exist, skipping")
+    except Exception:
+        logger.exception("Failed to seed default test users")
+        traceback.print_exc()
 
 
 @app.get("/health", tags=["health"])

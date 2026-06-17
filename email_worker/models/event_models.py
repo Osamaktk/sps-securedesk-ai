@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Dict, Optional, Literal
+from datetime import datetime, timezone
+from typing import Any, Dict, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -22,7 +22,7 @@ class BackendEvent(BaseModel):
     event_type: EventType
     ticket_id: str
     data: Dict[str, Any] = {}
-    occurred_at: datetime = Field(default_factory=datetime.utcnow)
+    occurred_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class TicketCreatePayload(BaseModel):

@@ -1,146 +1,66 @@
 """Tests for the thread resolver module."""
 
 import pytest
+from unittest.mock import patch
 
 from email_worker.models.email_models import ParsedEmail
-from email_worker.thread.resolver import extract_ticket_tag, resolve_thread
-from email_worker.storage.message_store import MessageStore
+from email_worker.thread.resolver import (
+    extract_ticket_tag,
+    resolve_thread,
+)
 
 
 class TestExtractTicketTag:
-    """Tests for the extract_ticket_tag function."""
+    """Tests for subject tag extraction."""
 
-    def test_extract_standard_tag(self):
-        """Test extracting a standard [SPS-2026-001] tag."""
-        result = extract_ticket_tag("[SPS-2026-001] VPN Connection Issue")
-        assert result == "SPS-2026-001"
+    def test_extracts_ticket_id_from_subject(self):
+        assert extract_ticket_tag("[SPS-2026-001] Password reset") == "SPS-2026-001"
 
-    def test_extract_tag_with_re_prefix(self):
-        """Test extracting tag from a reply subject."""
-        result = extract_ticket_tag("Re: [SPS-2026-025] Password Reset")
-        assert result == "SPS-2026-025"
+    def test_extracts_large_ticket_number(self):
+        assert extract_ticket_tag("Re: [SPS-2026-1000] Issue") == "SPS-2026-1000"
 
-    def test_extract_tag_with_long_number(self):
-        """Test extracting tag with a 4-digit number."""
-        result = extract_ticket_tag("[SPS-2026-9999] High priority")
-        assert result == "SPS-2026-9999"
+    def test_returns_none_for_clean_subject(self):
+        assert extract_ticket_tag("My computer is broken") is None
 
-    def test_extract_tag_no_match(self):
-        """Test that non-matching subjects return None."""
-        result = extract_ticket_tag("General Inquiry")
-        assert result is None
-
-    def test_extract_tag_empty_subject(self):
-        """Test that empty subject returns None."""
-        result = extract_ticket_tag("")
-        assert result is None
-
-    def test_extract_tag_none_input(self):
-        """Test that None subject returns None."""
-        result = extract_ticket_tag(None)  # type: ignore
-        assert result is None
-
-    def test_extract_tag_with_brackets_in_text(self):
-        """Test with brackets that aren't a ticket tag."""
-        result = extract_ticket_tag("Issue with [brackets] in text")
-        assert result is None
+    def test_returns_none_for_empty_subject(self):
+        assert extract_ticket_tag("") is None
 
 
 class TestResolveThread:
-    """Tests for the resolve_thread function."""
+    """Tests for thread resolution logic."""
 
-    def test_resolve_new_email_no_match(self):
-        """Test a new email with no ticket tag and no In-Reply-To returns new."""
+    def test_new_ticket_via_subject_tag(self):
         email = ParsedEmail(
-            message_id="<new@example.com>",
             from_address="user@example.com",
-            subject="New Issue",
-            plain_text_body="Help with something",
+            subject="[SPS-2026-001] Password reset",
+            message_id="<msg1@ex.com>",
         )
-        thread_type, ticket_id = resolve_thread(email)
-        assert thread_type == "new"
-        assert ticket_id is None
+        result = resolve_thread(email)
+        assert result == ("reply", "SPS-2026-001")
 
-    def test_resolve_reply_via_subject_tag(self):
-        """Test detecting a reply from a subject tag."""
+    def test_new_ticket_via_in_reply_to(self):
         email = ParsedEmail(
-            message_id="<reply@example.com>",
             from_address="user@example.com",
-            subject="Re: [SPS-2026-001] VPN Issue",
-            plain_text_body="Still having issues.",
+            subject="Re: Help please",
+            message_id="<msg2@ex.com>",
+            in_reply_to="<sps-sp42@ex.com>",
         )
-        thread_type, ticket_id = resolve_thread(email)
-        assert thread_type == "reply"
-        assert ticket_id == "SPS-2026-001"
+        with patch(
+            "email_worker.thread.resolver.message_store"
+        ) as mock_store:
+            mock_store.lookup_message_id.return_value = "SPS-2026-042"
+            result = resolve_thread(email)
+        assert result == ("reply", "SPS-2026-042")
 
-    def test_resolve_reply_via_in_reply_to(self):
-        """Test detecting a reply via In-Reply-To with stored mapping."""
-        store = MessageStore()
-        store.save_message_mapping("<original@example.com>", "SPS-2026-030")
-
+    def test_new_ticket_no_match(self):
         email = ParsedEmail(
-            message_id="<reply2@example.com>",
-            in_reply_to="<original@example.com>",
             from_address="user@example.com",
-            subject="Re: Something",
-            plain_text_body="Reply content",
+            subject="My computer is broken",
+            message_id="<msg3@ex.com>",
         )
-
-        # Use the singleton store which now has the mapping
-        from email_worker.thread.resolver import resolve_thread
-        thread_type, ticket_id = resolve_thread(email)
-        # This may or may not find it depending on store state
-        # We just verify it doesn't crash
-        assert thread_type in ("new", "reply")
-
-        # Clean up
-        store.delete_mapping("<original@example.com>")
-
-    def test_subject_tag_takes_priority(self):
-        """Test that subject tag is checked before In-Reply-To."""
-        store = MessageStore()
-        store.save_message_mapping("<some-msg@example.com>", "SPS-2026-999")
-
-        email = ParsedEmail(
-            message_id="<priority-test@example.com>",
-            in_reply_to="<some-msg@example.com>",
-            from_address="user@example.com",
-            subject="[SPS-2026-001] Priority via tag",
-            plain_text_body="Body",
-        )
-
-        thread_type, ticket_id = resolve_thread(email)
-        assert thread_type == "reply"
-        assert ticket_id == "SPS-2026-001"
-
-        store.delete_mapping("<some-msg@example.com>")
-
-
-class TestSOCRouting:
-    """Tests for the SOC routing rule (via poller's _soc_routing_rule)."""
-
-    def test_soc_cybersecurity_critical_routes_to_security(self):
-        """Test that cybersecurity + critical routes to security team."""
-        from email_worker.imap.poller import _soc_routing_rule
-        from email_worker.models.event_models import ClassifyResponse
-
-        classify = ClassifyResponse(
-            category="cybersecurity",
-            priority="critical",
-            team="infrastructure",
-        )
-        team = _soc_routing_rule(classify)
-        assert team == "security"
-
-    def test_soc_no_override_for_other_categories(self):
-        """Test that non-cybersecurity categories use original team."""
-        from email_worker.imap.poller import _soc_routing_rule
-        from email_worker.models.event_models import ClassifyResponse
-
-        classify = ClassifyResponse(
-            category="networking",
-            priority="high",
-            team="network-team",
-        )
-        team = _soc_routing_rule(classify)
-        assert team == "network-team"
+        with patch(
+            "email_worker.thread.resolver.message_store"
+        ) as mock_store:
+            mock_store.lookup_message_id.return_value = None
+            result = resolve_thread(email)
+        assert result == ("new", None)

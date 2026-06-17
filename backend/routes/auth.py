@@ -1,3 +1,5 @@
+import logging
+import traceback
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
@@ -14,6 +16,8 @@ from schemas.user import UserPublic
 from services.auth_service import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+logger = logging.getLogger("sps.auth_routes")
 
 LOGIN_ATTEMPTS: dict[str, deque[datetime]] = defaultdict(deque)
 LOGIN_LIMIT = 10
@@ -69,17 +73,24 @@ async def login(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TokenResponse:
-    await _enforce_login_rate_limit(request, db)
-    user = await db.scalar(select(User).where(User.email == payload.email))
-    if not user or not user.is_active or not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
-
     try:
-        token = create_access_token(user.id, user.role)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+        await _enforce_login_rate_limit(request, db)
+        user = await db.scalar(select(User).where(User.email == payload.email))
+        if not user or not user.is_active or not verify_password(payload.password, user.hashed_password):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
-    return TokenResponse(
-        access_token=token,
-        user=TokenUser(id=user.id, email=user.email, role=user.role),
-    )
+        try:
+            token = create_access_token(user.id, user.role)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+        return TokenResponse(
+            access_token=token,
+            user=TokenUser(id=user.id, email=user.email, role=user.role),
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Unhandled exception in /auth/login endpoint")
+        traceback.print_exc()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")

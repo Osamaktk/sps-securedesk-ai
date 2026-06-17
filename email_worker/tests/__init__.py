@@ -1,1 +1,1 @@
-"""Test suite for the email worker module."""
+"""Test suite for email_worker modules."""

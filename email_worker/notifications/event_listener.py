@@ -25,13 +25,14 @@ class EventListener:
         self._running = False
         self._last_event_id: Optional[str] = None
         self._processed_event_ids: Set[str] = set()
-        self._poll_interval: int = 10  # Poll every 10 seconds
+        self._poll_interval: int = settings.imap_poll_interval_seconds
 
     async def _process_event(self, event: Dict[str, Any]) -> None:
-        """Process a single backend event and send the appropriate email.
+        """
+        Process a single backend event and dispatch the appropriate email notification.
 
         Args:
-            event: The event dictionary from the backend.
+            event: The raw event dictionary received from the backend events feed.
         """
         event_id = event.get("id", "")
         if event_id and event_id in self._processed_event_ids:
@@ -81,7 +82,6 @@ class EventListener:
                         requester_name=requester_name,
                     )
 
-                    # Log the sent email event to the timeline
                     timeline_payload = TimelineEventPayload(
                         event_type="agent_reply_email",
                         content=f"Agent reply notification sent to {requester_email}",
@@ -153,17 +153,12 @@ class EventListener:
                 exc_info=True,
             )
 
-        # Mark as processed
         if event_id:
             self._processed_event_ids.add(event_id)
             self._last_event_id = event_id
 
     async def poll_events(self) -> int:
-        """Poll the backend for new email events and process them.
-
-        Returns:
-            The number of events processed.
-        """
+        """Poll the backend for new email events and process them."""
         try:
             events = await self.ticket_client.fetch_events(self._last_event_id)
         except Exception as e:

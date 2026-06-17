@@ -218,6 +218,16 @@ async def update_ticket(
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
 
+    # High-risk tickets require explicit approval via /approve before any status changes.
+    if ticket.status == TicketStatus.WAITING_APPROVAL and actor.role not in {
+        UserRole.SECURITY_ADMIN,
+        UserRole.MANAGER,
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This ticket is pending approval. Only security_admin or manager can approve it.",
+        )
+
     changes: dict[str, dict[str, Any]] = {}
     update_data = payload.model_dump(exclude_unset=True)
 
@@ -322,6 +332,18 @@ async def resolve_approval(
     ticket = await get_ticket_by_id(db, ticket_id)
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+
+    if ticket.status != TicketStatus.WAITING_APPROVAL:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ticket {ticket.ticket_number} is not pending approval",
+        )
+
+    if actor.role not in {UserRole.SECURITY_ADMIN, UserRole.MANAGER}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only security_admin or manager can approve/reject tickets",
+        )
 
     # Approval decisions are terminal for rejects and move approved tickets into the agent queue.
     ticket.status = TicketStatus.IN_PROGRESS if payload.decision == "approved" else TicketStatus.CLOSED

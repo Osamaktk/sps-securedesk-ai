@@ -6,5 +6,5 @@ class ChatService:
     def __init__(self, assistant: ChatAssistant | None = None) -> None:
         self._assistant = assistant or ChatAssistant()
 
-    def respond(self, request: ChatRequest) -> ChatResponse:
-        return self._assistant.respond(request)
+    async def respond(self, request: ChatRequest) -> ChatResponse:
+        return await self._assistant.respond(request)

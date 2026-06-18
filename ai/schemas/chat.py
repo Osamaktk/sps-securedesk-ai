@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 
 from ai.config.constants import TicketPrefillCategory, TicketPriority
 
@@ -16,6 +16,7 @@ class ChatRequest(BaseModel):
     session_id: str = Field(min_length=1, max_length=128)
     user_id: str = Field(min_length=1, max_length=128)
     message: str = Field(min_length=1, max_length=20_000)
+    requester_email: Optional[EmailStr] = Field(default=None)
 
 
 class TicketPrefill(BaseModel):
@@ -30,6 +31,8 @@ class ChatResponse(BaseModel):
     sources: list[str] = Field(default_factory=list)
     escalate: bool = False
     ticket_prefill: TicketPrefill | None = None
+    ticket_number: Optional[str] = None
+    ticket_id: Optional[str] = None
 
 
 class ChatEscalationTicketPrefill(BaseModel):

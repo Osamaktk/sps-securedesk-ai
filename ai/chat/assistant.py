@@ -1,3 +1,4 @@
+import logging
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -9,9 +10,19 @@ from ai.chat.escalation import (
     no_answer_escalation,
 )
 from ai.chat.session import ChatSession, SessionStore, session_store
+from ai.config.constants import TicketPrefillCategory
 from ai.kb.retriever import RetrievalResult, search
 from ai.llm.router import GenerationResult, generate_response_with_provider
-from ai.schemas.chat import ChatRequest, ChatResponse
+from ai.schemas.chat import (
+    ChatEscalationRequest,
+    ChatEscalationTicketPrefill,
+    ChatRequest,
+    ChatResponse,
+    TicketPrefill,
+)
+from ai.services.backend_client import BackendAPIError, get_backend_client
+
+logger = logging.getLogger(__name__)
 
 
 PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "chat_system.txt"
@@ -40,13 +51,95 @@ def _unique_sources(results: list[RetrievalResult]) -> list[str]:
     return list(dict.fromkeys(_source_label(result) for result in results))
 
 
-def _escalation_response(decision: EscalationDecision) -> ChatResponse:
-    return ChatResponse(
-        response=decision.response,
-        sources=[],
-        escalate=True,
-        ticket_prefill=decision.ticket_prefill,
+async def _try_create_escalation_ticket(
+    request: ChatRequest,
+    decision: EscalationDecision,
+) -> ChatResponse:
+    if not request.requester_email:
+        logger.info(
+            "Skipping auto-ticket creation for session %s because requester_email is missing",
+            request.session_id,
+        )
+        return ChatResponse(
+            response=decision.response,
+            sources=[],
+            escalate=True,
+            ticket_prefill=decision.ticket_prefill,
+            ticket_number=None,
+            ticket_id=None,
+        )
+
+    backend_client = get_backend_client()
+    prefill = _build_escalation_prefill(decision)
+
+    try:
+        data = await backend_client.create_ticket(
+            prefill=prefill,
+            requester_email=request.requester_email,
+        )
+        ticket_number = data.get("ticket_number")
+        ticket_id = data.get("id")
+        logger.info(
+            "Auto-created escalation ticket %s (id=%s) for session %s",
+            ticket_number,
+            ticket_id,
+            request.session_id,
+        )
+        return ChatResponse(
+            response=f"This requires a support agent. I've created ticket {ticket_number} for you — a support agent will be with you shortly.",
+            sources=[],
+            escalate=True,
+            ticket_prefill=None,
+            ticket_number=ticket_number,
+            ticket_id=str(ticket_id) if ticket_id is not None else None,
+        )
+    except BackendAPIError as exc:
+        logger.warning("Failed to auto-create escalation ticket: %s", exc)
+        return ChatResponse(
+            response=decision.response,
+            sources=[],
+            escalate=True,
+            ticket_prefill=decision.ticket_prefill,
+            ticket_number=None,
+            ticket_id=None,
+        )
+
+
+def _build_escalation_prefill(decision: EscalationDecision) -> ChatEscalationTicketPrefill:
+    if decision.ticket_prefill is not None:
+        source = decision.ticket_prefill.source
+        subject = decision.ticket_prefill.subject
+        description = decision.ticket_prefill.description
+        category = decision.ticket_prefill.category
+    else:
+        source = "chat"
+        subject = "Support request from AI chat"
+        description = decision.response
+        category = TicketPrefillCategory.GENERAL_IT
+
+    risk_level = "high" if category == TicketPrefillCategory.CYBERSECURITY else "standard"
+    team = _team_for_category(category)
+
+    return ChatEscalationTicketPrefill(
+        source=source,
+        subject=subject,
+        description=description,
+        category=category,
+        risk_level=risk_level,
+        team=team,
     )
+
+
+def _team_for_category(category: TicketPrefillCategory) -> str:
+    mapping = {
+        TicketPrefillCategory.CYBERSECURITY: "security",
+        TicketPrefillCategory.IDENTITY_ACCESS: "security",
+        TicketPrefillCategory.CLOUD: "devops",
+        TicketPrefillCategory.DEVOPS: "devops",
+        TicketPrefillCategory.INTERNSHIP_HR: "hr",
+        TicketPrefillCategory.GENERAL_IT: "it",
+    }
+    return mapping.get(category, "it")
 
 
 def _build_user_prompt(
@@ -121,7 +214,7 @@ class ChatAssistant:
         self._generator = generator
         self._sessions = sessions
 
-    def respond(self, request: ChatRequest) -> ChatResponse:
+    async def respond(self, request: ChatRequest) -> ChatResponse:
         session = self._sessions.get_or_create(request.session_id, request.user_id)
         with session.lock:
             session.add_message("user", request.message)
@@ -131,13 +224,14 @@ class ChatAssistant:
                 repeated_count=session.repeated_question_count(request.message),
             )
             if escalation.required:
-                response = _escalation_response(escalation)
+                response = await _try_create_escalation_ticket(request, escalation)
                 session.add_message("assistant", response.response)
                 return response
 
             results = self._retriever(request.message, None)
             if not results:
-                response = _escalation_response(no_answer_escalation(request.message))
+                no_answer = no_answer_escalation(request.message)
+                response = await _try_create_escalation_ticket(request, no_answer)
                 session.add_message("assistant", response.response)
                 return response
 
@@ -149,7 +243,8 @@ class ChatAssistant:
             try:
                 grounded_response = _validate_and_cite_response(generated.text, sources)
             except ResponseGuardrailError:
-                response = _escalation_response(guardrail_escalation(request.message))
+                guardrail = guardrail_escalation(request.message)
+                response = await _try_create_escalation_ticket(request, guardrail)
                 session.add_message("assistant", response.response)
                 return response
 

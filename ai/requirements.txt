@@ -7,3 +7,4 @@ chromadb
 httpx
 anthropic
 groq
+email-validator

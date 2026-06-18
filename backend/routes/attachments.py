@@ -5,10 +5,11 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from middleware.auth_middleware import get_optional_current_user
+from middleware.auth_middleware import get_current_user, get_optional_current_user
 from middleware.security_middleware import log_security_event
 from models.attachment import Attachment
 from models.timeline_event import TimelineEvent, TimelineEventType
@@ -141,3 +142,43 @@ async def upload_attachment(
     await db.commit()
     await db.refresh(attachment)
     return attachment
+
+
+@router.get("/{ticket_id}/attachments/{attachment_id}/file")
+async def download_attachment(
+    ticket_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    attachment = await db.get(Attachment, attachment_id)
+    if not attachment or attachment.ticket_id != ticket_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+
+    ticket = await ticket_service.get_ticket_by_id(db, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    if not ticket_service.user_can_view_ticket(current_user, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+    file_path = Path(attachment.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found on server")
+
+    await write_audit_log(
+        db,
+        ticket_id=ticket_id,
+        actor_id=current_user.id,
+        action="ticket.attachment_downloaded",
+        channel="portal",
+        details={"attachment_id": str(attachment_id), "filename": attachment.filename},
+        ip_address=_client_ip(request),
+    )
+    await db.commit()
+
+    return FileResponse(
+        path=str(file_path),
+        filename=attachment.filename,
+        media_type=attachment.mime_type,
+    )

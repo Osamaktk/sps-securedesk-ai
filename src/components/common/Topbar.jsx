@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import SearchInput from './SearchInput';
+import { useAuth } from '../../context/AuthContext';
 
 const pageTitles = {
   '/requester': 'Dashboard',
@@ -28,7 +29,13 @@ function getPageTitle(pathname) {
 
 export default function Topbar({ onOpenMenu }) {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  const handleSignOut = () => {
+    logout(navigate);
+  };
 
   return (
     <header className="topbar">
@@ -92,10 +99,10 @@ export default function Topbar({ onOpenMenu }) {
                 Profile settings
               </button>
               <button type="button" role="menuitem">
-                Help &amp; support
+                Help & support
               </button>
-              <button type="button" role="menuitem">
-                Sign out placeholder
+              <button type="button" role="menuitem" onClick={handleSignOut}>
+                Sign out
               </button>
             </div>
           )}

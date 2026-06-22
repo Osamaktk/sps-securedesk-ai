@@ -43,7 +43,7 @@ export default function TicketReplyBox({
 
   const resolveTicket = async () => {
     setIsSaving(true);
-    setStatus('Resolved');
+    setStatus('resolved');
     await onResolve();
     setIsSaving(false);
   };

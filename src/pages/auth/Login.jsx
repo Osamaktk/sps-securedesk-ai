@@ -1,8 +1,9 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Brand from '../../components/common/Brand';
 import authService from '../../services/authService.js';
 import { ROLES } from '../../config/constants.js';
+import { useAuth } from '../../context/AuthContext';
 
 const roleRedirects = {
   [ROLES.INTERN]: '/requester',
@@ -15,6 +16,15 @@ const roleRedirects = {
 
 export default function Login() {
   const navigate = useNavigate();
+  const { login, user } = useAuth();
+
+  useEffect(() => {
+    const currentUser = user || authService.getCurrentUser();
+    if (currentUser?.role && roleRedirects[currentUser.role]) {
+      navigate(roleRedirects[currentUser.role], { replace: true });
+    }
+  }, [navigate, user]);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -25,8 +35,8 @@ export default function Login() {
     setError('');
     setIsSubmitting(true);
     try {
-      const user = await authService.login(email, password);
-      navigate(roleRedirects[user.role] || '/requester', { replace: true });
+      const loggedInUser = await login(email, password);
+      navigate(roleRedirects[loggedInUser.role] || '/requester', { replace: true });
     } catch {
       setError('Login failed. Please check your email and password.');
     } finally {

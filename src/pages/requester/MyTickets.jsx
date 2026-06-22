@@ -127,7 +127,7 @@ export default function MyTickets() {
                 <div className="requester-ticket__actions">
                   <Link
                     className="button button--outline"
-                    to={`/agent/tickets/${ticket.id}`}
+                    to={`/requester/tickets/${ticket.id}`}
                   >
                     View ticket
                   </Link>

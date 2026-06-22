@@ -123,7 +123,7 @@ export default function RequesterDashboard() {
       >
         <div className="requester-recent-list">
           {recentTickets.map((ticket) => (
-            <Link key={ticket.id} to={`/agent/tickets/${ticket.id}`}>
+            <Link key={ticket.id} to={`/requester/tickets/${ticket.id}`}>
               <span className="requester-recent-list__source">
                 <Badge value={ticket.source} />
               </span>

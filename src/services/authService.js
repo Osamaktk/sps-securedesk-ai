@@ -5,6 +5,7 @@ async function login(email, password) {
   const { access_token, user } = response.data;
   sessionStorage.setItem('token', access_token);
   sessionStorage.setItem('user', JSON.stringify(user));
+  window.dispatchEvent(new Event('auth-login'));
   return user;
 }
 
@@ -18,15 +19,27 @@ async function register(email, full_name, password, role) {
   return response.data;
 }
 
-function logout() {
+function logout(navigate) {
   sessionStorage.removeItem('token');
   sessionStorage.removeItem('user');
-  window.location.href = '/login';
+  window.dispatchEvent(new Event('auth-logout'));
+  if (navigate) {
+    navigate('/login', { replace: true });
+  }
 }
 
 function getCurrentUser() {
   const user = sessionStorage.getItem('user');
-  return user ? JSON.parse(user) : null;
+  if (!user) return null;
+
+  try {
+    return JSON.parse(user);
+  } catch (error) {
+    console.error('[authService] Invalid session user payload:', error);
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+    return null;
+  }
 }
 
 function isLoggedIn() {

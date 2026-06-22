@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { navigationItems } from '../../data/navigation';
+import { useAuth } from '../../context/AuthContext';
 import Brand from './Brand';
 
 export default function Sidebar({
@@ -8,6 +9,11 @@ export default function Sidebar({
   onClose,
   onToggleCollapse,
 }) {
+  const { user } = useAuth();
+  const visibleNavigationItems = navigationItems.filter(
+    (item) => !item.roles || item.roles.includes(user?.role),
+  );
+
   return (
     <aside
       className={`sidebar ${isOpen ? 'sidebar--open' : ''} ${
@@ -28,7 +34,7 @@ export default function Sidebar({
 
       <nav className="sidebar__nav" aria-label="Primary navigation">
         <p className="nav-section__label">Workspace</p>
-        {navigationItems.map((item) => (
+        {visibleNavigationItems.map((item) => (
           <NavLink
             className={({ isActive }) =>
               `nav-link ${isActive ? 'nav-link--active' : ''}`

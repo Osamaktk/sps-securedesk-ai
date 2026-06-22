@@ -7,25 +7,65 @@ import RecentTickets from '../../components/dashboard/RecentTickets';
 import SLAOverview from '../../components/dashboard/SLAOverview';
 import TicketSourceChart from '../../components/dashboard/TicketSourceChart';
 import Badge from '../../components/common/Badge';
-import { getReports } from '../../services/reportService.js';
 import { getTickets } from '../../services/ticketService.js';
+
+const sourceMeta = {
+  email: { label: 'Email', color: '#2563eb' },
+  portal_form: { label: 'Portal Form', color: '#0f766e' },
+  chat: { label: 'Chat', color: '#7c3aed' },
+};
+
+function isOpen(ticket) {
+  return !['resolved', 'closed'].includes(ticket.status);
+}
+
+function buildAgentDashboardReports(tickets) {
+  const totalTickets = tickets.length;
+  const openTickets = tickets.filter(isOpen).length;
+  const slaBreached = tickets.filter(
+    (ticket) => isOpen(ticket) && ticket.sla === 'SLA breached',
+  ).length;
+  const slaCompliance =
+    totalTickets > 0 ? Math.max(0, Math.round(((totalTickets - slaBreached) / totalTickets) * 100)) : 100;
+
+  return {
+    dashboardStats: {
+      totalTickets,
+      openTickets,
+      slaCompliance,
+      highRiskRequests: tickets.filter((ticket) => ticket.riskLevel === 'high').length,
+    },
+    ticketsBySource: Object.entries(sourceMeta).map(([key, meta]) => ({
+      label: meta.label,
+      value: tickets.filter((ticket) => ticket.source === key).length,
+      color: meta.color,
+    })),
+    slaPerformance: [
+      { period: 'Current', met: slaCompliance },
+      { period: 'Target', met: 95 },
+      { period: 'Previous', met: slaCompliance },
+    ],
+  };
+}
 
 export default function AgentDashboard() {
   const [tickets, setTickets] = useState([]);
-  const [reports, setReports] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
     setError('');
+    setIsLoading(true);
 
-    Promise.all([getTickets(), getReports()]).then(([ticketData, reportData]) => {
+    getTickets().then((ticketData) => {
       if (!isMounted) return;
       setTickets(ticketData);
-      setReports(reportData);
+      setIsLoading(false);
     }).catch(() => {
       if (isMounted) setError('The operations data could not be loaded from the backend.');
+      if (isMounted) setIsLoading(false);
     });
 
     return () => {
@@ -34,7 +74,9 @@ export default function AgentDashboard() {
   }, [reloadKey]);
 
   if (error) return <AsyncState type="error" title="Dashboard unavailable" description={error} onAction={() => setReloadKey((value) => value + 1)} />;
-  if (!reports) return <AsyncState title="Loading dashboard" description="Preparing operations metrics and ticket activity." />;
+  if (isLoading) return <AsyncState title="Loading dashboard" description="Preparing operations metrics and ticket activity." />;
+
+  const reports = buildAgentDashboardReports(tickets);
 
   return (
     <section className="page agent-dashboard">

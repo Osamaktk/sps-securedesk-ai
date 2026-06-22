@@ -1,4 +1,5 @@
 import api from './api.js';
+import { API_URL } from '../config/constants.js';
 
 const categoryMap = {
   Cloud: 'cloud',
@@ -100,14 +101,17 @@ export function normalizeTimelineEvent(event = {}) {
   };
 }
 
-export function normalizeAttachment(attachment = {}) {
+export function normalizeAttachment(attachment = {}, ticketId) {
   return {
     ...attachment,
     id: attachment.id,
     name: attachment.filename || attachment.name || 'attachment',
     size: attachment.file_size ?? attachment.size ?? 0,
     type: attachment.mime_type || attachment.type || 'application/octet-stream',
-    url: attachment.file_path || attachment.url || '#',
+    url:
+      attachment.id && ticketId
+        ? `${API_URL}/tickets/${ticketId}/attachments/${attachment.id}/file`
+        : attachment.url || '#',
     createdAt: attachment.created_at,
   };
 }
@@ -142,7 +146,7 @@ export function normalizeTicket(ticket = {}) {
     updatedAt: ticket.updated_at,
     timeline: timelineEvents.map(normalizeTimelineEvent),
     timeline_events: timelineEvents,
-    attachments: attachments.map(normalizeAttachment),
+    attachments: attachments.map((attachment) => normalizeAttachment(attachment, ticket.id)),
   };
 }
 
@@ -242,7 +246,7 @@ export async function uploadFile(id, file) {
   const response = await api.post(`/tickets/${id}/attachments`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
-  return normalizeAttachment(response.data);
+  return normalizeAttachment(response.data, id);
 }
 
 export async function approveTicket(id, decision, reason) {

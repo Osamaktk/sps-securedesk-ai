@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     service_name: str = "SPS SecureDesk AI"
     service_port: int = Field(default=8001, ge=1, le=65535)
     backend_api_url: str = "http://backend:8000"
+    cors_origins: str = (
+        "http://localhost:5173,http://localhost:5174,http://localhost:3000,"
+        "http://localhost:5199,http://127.0.0.1:5199"
+    )
 
     llm_provider: str = "anthropic"
 
@@ -52,6 +56,10 @@ class Settings(BaseSettings):
                 f"LLM_PROVIDER must be one of: {', '.join(sorted(allowed))}"
             )
         return provider
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @field_validator("kb_chunk_overlap")
     @classmethod

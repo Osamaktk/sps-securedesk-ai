@@ -32,6 +32,11 @@ export default function Reports() {
   if (error) return <AsyncState type="error" title="Reports unavailable" description={error} onAction={() => setReloadKey((value) => value + 1)} />;
   if (!reports) return <AsyncState title="Loading reports" description="Preparing channel, SLA, risk, and audit data." />;
 
+  const openTicketPercent =
+    reports.dashboardStats.totalTickets > 0
+      ? (reports.dashboardStats.openTickets / reports.dashboardStats.totalTickets) * 100
+      : 0;
+
   return (
     <section className="page reports-page">
       <div className="page-heading">
@@ -63,7 +68,7 @@ export default function Reports() {
         </Card>
         <Card title="Resolved vs Open Tickets" subtitle="Current ticket state summary.">
           <div className="report-donut-placeholder">
-            <div style={{ '--open-percent': `${(reports.dashboardStats.openTickets / reports.dashboardStats.totalTickets) * 100}%` }}>
+            <div style={{ '--open-percent': `${openTicketPercent}%` }}>
               <strong>{reports.dashboardStats.totalTickets}</strong>
               <span>Total tickets</span>
             </div>

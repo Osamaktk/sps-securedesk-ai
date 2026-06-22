@@ -41,10 +41,11 @@ function createUserMessage(content) {
 }
 
 function createAssistantMessage(response) {
-  const sources = Array.isArray(response.source)
-    ? response.source
-    : response.source
-      ? [response.source]
+  const responseSources = response.sources || response.source;
+  const sources = Array.isArray(responseSources)
+    ? responseSources
+    : responseSources
+      ? [responseSources]
       : [];
 
   return {

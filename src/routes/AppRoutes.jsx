@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import AppShell from '../components/common/AppShell';
 import Login from '../pages/auth/Login';
 import Register from '../pages/auth/Register';
+import { NotificationProvider } from '../context/NotificationContext';
 import RequesterDashboard from '../pages/requester/RequesterDashboard';
 import SubmitRequest from '../pages/requester/SubmitRequest';
 import MyTickets from '../pages/requester/MyTickets';
@@ -59,7 +60,11 @@ export default function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
-      <Route element={<AppShell />}>
+      <Route element={
+        <NotificationProvider>
+          <AppShell />
+        </NotificationProvider>
+      }>
         <Route path="/requester" element={
           <ProtectedRoute allowedRoles={REQUESTER_ROLES}>
             <RequesterDashboard />

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import SearchInput from './SearchInput';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationContext';
 
 const pageTitles = {
   '/requester': 'Dashboard',
@@ -32,6 +33,16 @@ export default function Topbar({ onOpenMenu }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const {
+    notifications,
+    unreadCount,
+    isOpen,
+    dropdownRef,
+    toggleDropdown,
+    closeDropdown,
+    markAsRead,
+    markAllAsRead,
+  } = useNotifications();
 
   const handleSignOut = () => {
     logout(navigate);
@@ -61,16 +72,51 @@ export default function Topbar({ onOpenMenu }) {
       </div>
 
       <div className="topbar__actions">
-        <button
-          className="notification-button"
-          type="button"
-          aria-label="Notifications, 3 unread"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M14 21h-4" />
-          </svg>
-          <span className="notification-button__count">3</span>
-        </button>
+        <div className="notification-dropdown" ref={dropdownRef}>
+          <button
+            className="notification-button"
+            type="button"
+            aria-label={`Notifications, ${unreadCount} unread`}
+            onClick={toggleDropdown}
+            aria-expanded={isOpen}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M14 21h-4" />
+            </svg>
+            {unreadCount > 0 && <span className="notification-button__count">{unreadCount}</span>}
+          </button>
+
+          {isOpen && (
+            <div className="notification-dropdown__panel" role="menu">
+              <div className="notification-dropdown__header">
+                <strong>Notifications</strong>
+                {unreadCount > 0 && (
+                  <button type="button" onClick={markAllAsRead}>Mark all read</button>
+                )}
+              </div>
+              <div className="notification-dropdown__list">
+                {notifications.length === 0 && (
+                  <p className="notification-dropdown__empty">No notifications yet.</p>
+                )}
+                {notifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className={`notification-dropdown__item ${notification.is_read ? '' : 'notification-dropdown__item--unread'}`}
+                    role="menuitem"
+                    onClick={() => markAsRead([notification.id])}
+                  >
+                    <div className="notification-dropdown__item-content">
+                      <strong>{notification.title}</strong>
+                      {notification.message && <p>{notification.message}</p>}
+                      <span>{new Date(notification.created_at).toLocaleString()}</span>
+                    </div>
+                    {!notification.is_read && <span className="notification-dropdown__dot" />}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="profile-menu">
           <button

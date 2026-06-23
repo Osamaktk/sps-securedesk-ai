@@ -1,5 +1,6 @@
 from models.attachment import Attachment
 from models.audit_log import AuditLog
+from models.notification import Notification
 from models.ticket import RiskLevel, Ticket, TicketCategory, TicketPriority, TicketSource, TicketStatus, TicketTeam
 from models.timeline_event import TimelineEvent, TimelineEventType
 from models.user import ROLE_LEVELS, User, UserRole
@@ -7,6 +8,7 @@ from models.user import ROLE_LEVELS, User, UserRole
 __all__ = [
     "Attachment",
     "AuditLog",
+    "Notification",
     "ROLE_LEVELS",
     "RiskLevel",
     "Ticket",

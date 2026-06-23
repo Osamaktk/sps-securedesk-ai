@@ -14,7 +14,7 @@ import models  # noqa: F401
 from database import AsyncSessionLocal, Base, DATABASE_URL, engine
 from middleware.security_middleware import check_security_threats
 from models.user import User, UserRole
-from routes import approvals_router, attachments_router, auth_router, events_feed_router, events_router, reports_router, tickets_router
+from routes import approvals_router, attachments_router, auth_router, events_feed_router, events_router, notifications_router, reports_router, tickets_router, users_router
 from services.auth_service import hash_password
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
@@ -47,6 +47,8 @@ app = FastAPI(
         {"name": "attachments", "description": "Ticket file uploads"},
         {"name": "approvals", "description": "High-risk ticket approval workflow"},
         {"name": "reports", "description": "Operational summary reports"},
+        {"name": "users", "description": "Admin user management"},
+        {"name": "notifications", "description": "In-app notifications"},
         {"name": "health", "description": "Service health checks"},
     ],
 )
@@ -67,6 +69,8 @@ app.include_router(events_feed_router)
 app.include_router(attachments_router)
 app.include_router(approvals_router)
 app.include_router(reports_router)
+app.include_router(notifications_router)
+app.include_router(users_router)
 
 
 @app.on_event("startup")

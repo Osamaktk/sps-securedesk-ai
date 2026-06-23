@@ -15,6 +15,7 @@ from models.timeline_event import TimelineEvent, TimelineEventType
 from models.user import ROLE_LEVELS, User, UserRole
 from schemas.ticket import ApprovalRequest, TicketCreate, TicketUpdate, TimelineEventCreate
 from services.audit_service import write_audit_log
+from services.notification_service import create_notifications_for_new_ticket
 from services.sla_service import compute_sla_due_at
 
 
@@ -157,6 +158,9 @@ async def create_ticket(
                     created_at=created_at,
                 )
             )
+
+        # Create notifications for all staff users
+        await create_notifications_for_new_ticket(db, ticket, payload.requester_email)
 
         await write_audit_log(
             db,

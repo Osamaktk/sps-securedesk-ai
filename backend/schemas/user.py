@@ -38,3 +38,21 @@ class UserPublic(BaseModel):
 class UserRead(UserPublic):
     is_active: bool
     created_at: datetime
+
+
+class UserUpdate(BaseModel):
+    full_name: str | None = Field(default=None, min_length=1, max_length=255)
+    role: UserRole | None = None
+    is_active: bool | None = None
+
+    @field_validator("full_name")
+    @classmethod
+    def normalize_full_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip()
+
+
+class UserCreateAdmin(UserBase):
+    password: str = Field(min_length=8, max_length=128)
+    is_active: bool = True

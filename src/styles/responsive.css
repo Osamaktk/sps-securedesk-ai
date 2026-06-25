@@ -258,6 +258,22 @@
   }
 }
 
+@media (max-width: 1024px) {
+  .login-page {
+    grid-template-columns: 1fr;
+  }
+
+  .login-panel {
+    border-right: none;
+    border-bottom: 1px solid #e8eef7;
+  }
+
+  .login-visual {
+    padding: 40px;
+    min-height: 400px;
+  }
+}
+
 @media (max-width: 760px) {
   .topbar {
     min-height: 66px;
@@ -318,12 +334,15 @@
   }
 
   .login-page {
-    display: block;
+    display: flex;
+    flex-direction: column;
   }
 
   .login-panel {
-    min-height: 100vh;
+    order: 2;
+    min-height: auto;
     padding: 34px 22px;
+    border-bottom: none;
   }
 
   .login-panel__intro {
@@ -331,7 +350,55 @@
   }
 
   .login-visual {
-    display: none;
+    order: 1;
+    display: flex;
+    padding: 32px 22px;
+    min-height: auto;
+    justify-content: flex-start;
+    align-items: center;
+    text-align: center;
+  }
+
+  .login-visual__content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .login-visual h2 {
+    max-width: 100%;
+    font-size: clamp(22px, 5vw, 30px);
+  }
+
+  .login-visual p {
+    max-width: 100%;
+    font-size: 13px;
+  }
+
+  .login-visual__floating-card {
+    transform: scale(0.7);
+    transform-origin: center;
+  }
+
+  .login-visual__orb--1 {
+    width: 220px;
+    height: 220px;
+    top: -40px;
+    right: -30px;
+  }
+
+  .login-visual__orb--2 {
+    width: 160px;
+    height: 160px;
+    bottom: 5%;
+    left: -20px;
+  }
+
+  .login-visual__orb--3 {
+    width: 120px;
+    height: 120px;
+    top: 40%;
+    right: 10%;
   }
 
   .chat-widget {

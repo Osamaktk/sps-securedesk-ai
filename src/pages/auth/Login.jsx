@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Brand from '../../components/common/Brand';
+import GuestReportForm from '../../components/auth/GuestReportForm';
 import authService from '../../services/authService.js';
 import { ROLES } from '../../config/constants.js';
 import { useAuth } from '../../context/AuthContext';
@@ -13,6 +14,13 @@ const roleRedirects = {
   [ROLES.MANAGER]: '/manager',
   [ROLES.ADMINISTRATOR]: '/admin',
 };
+
+const floatingServices = [
+  { icon: '🤖', title: 'AI & Automation', desc: 'Intelligent ticket routing', x: '8%', y: '12%', delay: '0s', duration: '28s' },
+  { icon: '☁️', title: 'Cloud & DevOps', desc: 'Infrastructure management', x: '72%', y: '18%', delay: '4s', duration: '32s' },
+  { icon: '🔒', title: 'Cybersecurity', desc: 'Security approvals & compliance', x: '15%', y: '68%', delay: '8s', duration: '26s' },
+  { icon: '🔐', title: 'Identity & Access', desc: 'Zero-trust access controls', x: '68%', y: '72%', delay: '12s', duration: '30s' },
+];
 
 export default function Login() {
   const navigate = useNavigate();
@@ -29,6 +37,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGuestOpen, setIsGuestOpen] = useState(false);
 
   const submitLogin = async (event) => {
     event.preventDefault();
@@ -85,8 +94,53 @@ export default function Login() {
         <p className="login-panel__note">
           New to SecureDesk? <Link to="/register">Create an account</Link>.
         </p>
+        <div className="login-panel__guest">
+          <button
+            className="login-panel__guest-toggle"
+            type="button"
+            onClick={() => setIsGuestOpen((v) => !v)}
+            aria-expanded={isGuestOpen}
+          >
+            <span aria-hidden="true">📩</span>
+            External party? Submit a report without signing in
+            <span className={`login-panel__guest-chevron ${isGuestOpen ? 'login-panel__guest-chevron--open' : ''}`} aria-hidden="true">▾</span>
+          </button>
+          {isGuestOpen && (
+            <div className="login-panel__guest-form">
+              <GuestReportForm />
+            </div>
+          )}
+        </div>
       </section>
       <aside className="login-visual">
+        {/* Floating service cards in background */}
+        <div className="login-visual__floating-bg" aria-hidden="true">
+          {floatingServices.map((s) => (
+            <div
+              key={s.title}
+              className="login-visual__floating-card"
+              style={{
+                left: s.x,
+                top: s.y,
+                animationDelay: s.delay,
+                animationDuration: s.duration,
+              }}
+            >
+              <span className="login-visual__floating-icon">{s.icon}</span>
+              <div>
+                <strong>{s.title}</strong>
+                <span>{s.desc}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Decorative gradient orbs */}
+        <div className="login-visual__orb login-visual__orb--1" aria-hidden="true" />
+        <div className="login-visual__orb login-visual__orb--2" aria-hidden="true" />
+        <div className="login-visual__orb login-visual__orb--3" aria-hidden="true" />
+
+        {/* Featured hero text */}
         <div className="login-visual__content">
           <span className="login-visual__label">SPS SecureDesk AI</span>
           <h2>One secure workspace for enterprise support operations.</h2>

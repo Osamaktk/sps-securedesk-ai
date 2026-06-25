@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import AppShell from '../components/common/AppShell';
+import Home from '../pages/Home';
 import Login from '../pages/auth/Login';
 import Register from '../pages/auth/Register';
 import { NotificationProvider } from '../context/NotificationContext';
@@ -56,7 +57,8 @@ function RoleRedirect() {
 export default function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<RoleRedirect />} />
+      <Route path="/" element={<Home />} />
+      <Route path="/app" element={<RoleRedirect />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 

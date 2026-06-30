@@ -54,7 +54,7 @@ services:
 
   email_worker:
     build:
-      context: .
+      context: ./email_worker
       dockerfile: Dockerfile
     environment:
       - IMAP_HOST=${IMAP_HOST:-}

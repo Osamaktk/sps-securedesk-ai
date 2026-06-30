@@ -19,7 +19,7 @@ from models.user import ROLE_LEVELS, User, UserRole
 from schemas.ticket import ApprovalRequest, TicketCreate, TicketUpdate, TimelineEventCreate
 from services.audit_service import write_audit_log
 from services.notification_service import create_notifications_for_new_ticket
-from services.sla_service import compute_sla_due_at, compute_sla_fields
+from services.sla_service import compute_sla_due_at
 
 
 logger = logging.getLogger(__name__)
@@ -132,16 +132,9 @@ async def create_ticket(
     risk_level = _default_risk_level(payload.category)
     ticket_status = TicketStatus.WAITING_APPROVAL if risk_level == RiskLevel.HIGH else TicketStatus.OPEN
     requester_id = actor.id if actor and payload.requester_email.lower() == actor.email.lower() else None
-    team = payload.team if payload.team is not None else _default_team(payload.category)
+    team = _default_team(payload.category)
     
-    # Compute SLA fields from database policy
-    sla_fields = await compute_sla_fields(
-        db,
-        created_at,
-        payload.priority,
-        payload.category,
-        risk_level,
-    )
+    sla_due_at = compute_sla_due_at(created_at, payload.priority)
 
     for attempt in range(5):
         ticket_number = await generate_ticket_number(db, created_at.year)
@@ -158,11 +151,7 @@ async def create_ticket(
             team=team,
             status=ticket_status,
             ai_summary=payload.ai_summary,
-            sla_due_at=sla_fields["sla_due_at"],
-            sla_response_hours=sla_fields["sla_response_hours"],
-            sla_resolution_hours=sla_fields["sla_resolution_hours"],
-            sla_response_due=sla_fields["sla_response_due"],
-            sla_resolution_due=sla_fields["sla_resolution_due"],
+            sla_due_at=sla_due_at,
             created_at=created_at,
             updated_at=created_at,
         )
@@ -361,19 +350,7 @@ async def update_ticket(
 
     ticket.updated_at = utc_now()
     if "priority" in changes:
-        # Recalculate SLA fields when priority changes
-        sla_fields = await compute_sla_fields(
-            db,
-            ticket.updated_at,
-            ticket.priority,
-            ticket.category,
-            ticket.risk_level,
-        )
-        ticket.sla_due_at = sla_fields["sla_due_at"]
-        ticket.sla_response_hours = sla_fields["sla_response_hours"]
-        ticket.sla_resolution_hours = sla_fields["sla_resolution_hours"]
-        ticket.sla_response_due = sla_fields["sla_response_due"]
-        ticket.sla_resolution_due = sla_fields["sla_resolution_due"]
+        ticket.sla_due_at = compute_sla_due_at(ticket.updated_at, ticket.priority)
         if old_sla_due_at != ticket.sla_due_at:
             changes["sla_due_at"] = {"from": _json_safe(old_sla_due_at), "to": _json_safe(ticket.sla_due_at)}
 

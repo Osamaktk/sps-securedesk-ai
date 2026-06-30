@@ -4,22 +4,17 @@ The email_worker calls this endpoint every ~10 seconds to discover new events
 that require an outbound email to be sent (e.g. ticket created, agent reply,
 status change, approval required).
 
-Auth decision: This endpoint requires NO authentication (no JWT/API key).
-Rationale: it only returns non-sensitive notification trigger metadata
-(requester_email, subject, ticket_id), which the email_worker already knows
-through other means (it created the event in many cases). Adding an API key
-would require the email_worker to securely store and rotate it, adding
-complexity with minimal security gain for this capstone project.
-
-In production, you should add an X-Internal-Api-Key header check using an
-environment variable shared between the backend and email_worker containers.
+Auth decision: This endpoint requires an X-Internal-Api-Key shared by the
+backend and email_worker containers because the feed includes requester
+identity and ticket metadata.
 """
 
 import json
+import os
 import uuid
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -47,6 +42,16 @@ FORWARDED_EVENT_TYPES = {
 }
 
 APPROVER_ROLES = {UserRole.SECURITY_ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATOR}
+
+
+def _internal_api_key() -> str:
+    return os.getenv("INTERNAL_API_KEY", "")
+
+
+def _require_internal_api_key(x_internal_api_key: str | None) -> None:
+    expected_key = _internal_api_key()
+    if not expected_key or x_internal_api_key != expected_key:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid internal API key")
 
 
 def _build_event_data(event: TimelineEvent, ticket: Ticket) -> dict[str, Any]:
@@ -129,6 +134,7 @@ def _build_event_output(
 
 @router.get("/events/email")
 async def email_events_feed(
+    x_internal_api_key: Annotated[str | None, Header(alias="X-Internal-Api-Key")] = None,
     db: AsyncSession = Depends(get_db),
     since_event_id: str | None = Query(
         None,
@@ -149,6 +155,8 @@ async def email_events_feed(
     session; a production-grade alternative would add a `delivered_at` or
     `email_sent` boolean column on the timeline_event table.
     """
+    _require_internal_api_key(x_internal_api_key)
+
     # Build query for events that should trigger email notifications
     query = (
         select(TimelineEvent)

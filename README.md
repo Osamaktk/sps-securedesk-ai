@@ -235,6 +235,7 @@ Backend variables are documented in `backend/.env.example`.
 | `MAX_UPLOAD_SIZE_MB` | No | File upload limit, defaults to `10` |
 | `ENVIRONMENT` | No | Use `development` locally and `production` in deployment |
 | `SEED_DEFAULT_USERS` | No | Set to `true` only for local/dev demo accounts; leave unset or `false` in production |
+| `INTERNAL_API_KEY` | Yes for email worker | Shared secret required for internal backend/email-worker endpoints |
 | `CORS_ORIGINS` | No | Comma-separated allowed frontend origins |
 | `SMTP_HOST` | Dev 2 | Outbound email host, Mailhog locally |
 | `SMTP_PORT` | Dev 2 | Outbound email port |

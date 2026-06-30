@@ -55,6 +55,9 @@ class Settings:
             "AI_SERVICE_URL", "http://ai_service:8001"
         )
     )
+    internal_api_key: str = field(
+        default_factory=lambda: os.getenv("INTERNAL_API_KEY", "")
+    )
     portal_url: str = field(
         default_factory=lambda: os.getenv(
             "PORTAL_URL", "http://localhost:5173"

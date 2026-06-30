@@ -159,7 +159,10 @@ class TicketClient:
         params: Dict[str, str] = {}
         if last_event_id:
             params["after"] = last_event_id
-        response = await client.get("/events/email", params=params)
+        headers = {}
+        if settings.internal_api_key:
+            headers["X-Internal-Api-Key"] = settings.internal_api_key
+        response = await client.get("/events/email", params=params, headers=headers)
         response.raise_for_status()
         events: list = response.json()
         return events

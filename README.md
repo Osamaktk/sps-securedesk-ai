@@ -124,7 +124,7 @@ sps-securedesk-ai/
 |   +-- requirements.txt      # Python dependencies
 +-- email_worker/             # Email pipeline service (Dev 2)
 +-- ai/                       # AI service (Dev 3)
-+-- docker-compose.yml        # Local DB, Mailhog, backend, optional teammate services
++-- docker-compose.yml        # Local DB, Mailhog, backend, email worker, and AI service
 +-- README.md
 ```
 
@@ -205,7 +205,7 @@ Expected health response:
 From the repository root:
 
 ```bash
-docker compose up --build db mailhog backend
+docker compose up --build
 ```
 
 Local service URLs:
@@ -214,12 +214,9 @@ Local service URLs:
 - Backend docs: `http://127.0.0.1:8000/docs`
 - Mailhog UI: `http://127.0.0.1:8025`
 - PostgreSQL: `localhost:5432`
+- AI service: `http://127.0.0.1:8001`
 
-Optional teammate services are included behind Compose profiles and should be used after those folders are added by their owners:
-
-```bash
-docker compose --profile email --profile ai up --build
-```
+A plain `docker compose up` starts the full local stack: PostgreSQL, Mailhog, backend, email worker, and AI service. The email worker logs and waits when IMAP credentials are not configured, while the AI service starts without provider keys and only requires an LLM key for endpoints that call a provider.
 
 ---
 

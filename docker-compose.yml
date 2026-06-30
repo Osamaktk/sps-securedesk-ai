@@ -54,8 +54,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    profiles:
-      - email
     environment:
       - IMAP_HOST=${IMAP_HOST:-}
       - IMAP_PORT=${IMAP_PORT:-993}
@@ -82,8 +80,6 @@ services:
         condition: service_started
 
   ai_service:
-    profiles:
-      - ai
     build: ./ai
     ports:
       - "8001:8001"

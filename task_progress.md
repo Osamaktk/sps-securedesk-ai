@@ -1,9 +1,0 @@
-- [x] Analyze existing codebase
-- [ ] Step 1: Create backend Notification model
-- [ ] Step 2: Create backend notification schemas
-- [ ] Step 3: Create backend notification service & routes
-- [ ] Step 4: Register model + routes in __init__ and main.py
-- [ ] Step 5: Hook notification creation into ticket_service.py
-- [ ] Step 6: Create frontend notification service
-- [ ] Step 7: Create frontend NotificationContext provider
-- [ ] Step 8: Update Topbar with live notification dropdown

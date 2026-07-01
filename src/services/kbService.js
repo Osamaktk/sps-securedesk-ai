@@ -23,11 +23,5 @@ async function deleteDocument(filename) {
   return response.data;
 }
 
-const kbService = { 
-  listDocuments, 
-  createDocument, 
-  updateDocument, 
-  deleteDocument 
-};
-
+const kbService = { listDocuments, createDocument, updateDocument, deleteDocument };
 export default kbService;

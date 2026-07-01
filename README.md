@@ -124,7 +124,7 @@ sps-securedesk-ai/
 |   +-- requirements.txt      # Python dependencies
 +-- email_worker/             # Email pipeline service (Dev 2)
 +-- ai/                       # AI service (Dev 3)
-+-- docker-compose.yml        # Local DB, Mailhog, backend, optional teammate services
++-- docker-compose.yml        # Local DB, Mailhog, backend, email worker, and AI service
 +-- README.md
 ```
 
@@ -205,7 +205,7 @@ Expected health response:
 From the repository root:
 
 ```bash
-docker compose up --build db mailhog backend
+docker compose up --build
 ```
 
 Local service URLs:
@@ -214,12 +214,9 @@ Local service URLs:
 - Backend docs: `http://127.0.0.1:8000/docs`
 - Mailhog UI: `http://127.0.0.1:8025`
 - PostgreSQL: `localhost:5432`
+- AI service: `http://127.0.0.1:8001`
 
-Optional teammate services are included behind Compose profiles and should be used after those folders are added by their owners:
-
-```bash
-docker compose --profile email --profile ai up --build
-```
+A plain `docker compose up` starts the full local stack: PostgreSQL, Mailhog, backend, email worker, and AI service. The email worker logs and waits when IMAP credentials are not configured, while the AI service starts without provider keys and only requires an LLM key for endpoints that call a provider.
 
 ---
 
@@ -237,6 +234,8 @@ Backend variables are documented in `backend/.env.example`.
 | `UPLOAD_DIR` | No | Attachment storage path |
 | `MAX_UPLOAD_SIZE_MB` | No | File upload limit, defaults to `10` |
 | `ENVIRONMENT` | No | Use `development` locally and `production` in deployment |
+| `SEED_DEFAULT_USERS` | No | Set to `true` only for local/dev demo accounts; leave unset or `false` in production |
+| `INTERNAL_API_KEY` | Yes for email worker | Shared secret required for internal backend/email-worker endpoints |
 | `CORS_ORIGINS` | No | Comma-separated allowed frontend origins |
 | `SMTP_HOST` | Dev 2 | Outbound email host, Mailhog locally |
 | `SMTP_PORT` | Dev 2 | Outbound email port |
@@ -933,7 +932,7 @@ python -m venv .venv
 .venv\Scripts\activate
 
 # 3. Install dependencies
-pip install -r email_worker/requirements.txt
+pip install -r email_worker/requirements.txt -r email_worker/requirements-dev.txt
 
 # 4. Configure environment
 Copy-Item email_worker\.env.example email_worker\.env

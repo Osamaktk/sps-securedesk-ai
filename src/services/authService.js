@@ -9,12 +9,11 @@ async function login(email, password) {
   return user;
 }
 
-async function register(email, full_name, password, role) {
+async function register(email, full_name, password) {
   const response = await api.post('/auth/register', {
     email,
     full_name,
     password,
-    role,
   });
   return response.data;
 }

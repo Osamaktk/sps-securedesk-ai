@@ -19,7 +19,7 @@ from models.user import ROLE_LEVELS, User, UserRole
 from schemas.ticket import ApprovalRequest, TicketCreate, TicketUpdate, TimelineEventCreate
 from services.audit_service import write_audit_log
 from services.notification_service import create_notifications_for_new_ticket
-from services.sla_service import compute_sla_due_at, compute_sla_fields
+from services.sla_service import compute_sla_due_at
 
 
 logger = logging.getLogger(__name__)
@@ -67,6 +67,39 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+async def _add_approval_request(
+    db: AsyncSession,
+    ticket: Ticket,
+    *,
+    actor: User | None,
+    actor_email: str,
+    channel: str,
+    ip_address: str | None,
+    created_at: datetime | None = None,
+) -> None:
+    db.add(
+        TimelineEvent(
+            ticket_id=ticket.id,
+            event_type=TimelineEventType.APPROVAL_REQUESTED,
+            actor_id=actor.id if actor else None,
+            actor_email=actor.email if actor else actor_email,
+            content=f"High-risk ticket {ticket.ticket_number} requires approval",
+            is_public=False,
+            channel="system",
+            created_at=created_at or utc_now(),
+        )
+    )
+    await write_audit_log(
+        db,
+        ticket_id=ticket.id,
+        actor_id=actor.id if actor else None,
+        action="ticket.approval_requested",
+        channel=channel,
+        details={"ticket_number": ticket.ticket_number, "risk_level": RiskLevel.HIGH.value},
+        ip_address=ip_address,
+    )
+
+
 async def _call_ai_classifier(subject: str, description: str) -> dict[str, Any] | None:
     """Call the AI classifier service and return the classification result.
 
@@ -111,6 +144,7 @@ async def get_ticket_by_id(db: AsyncSession, ticket_id: uuid.UUID) -> Ticket | N
         select(Ticket)
         .options(selectinload(Ticket.timeline_events), selectinload(Ticket.attachments))
         .where(Ticket.id == ticket_id)
+        .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
 
@@ -132,16 +166,9 @@ async def create_ticket(
     risk_level = _default_risk_level(payload.category)
     ticket_status = TicketStatus.WAITING_APPROVAL if risk_level == RiskLevel.HIGH else TicketStatus.OPEN
     requester_id = actor.id if actor and payload.requester_email.lower() == actor.email.lower() else None
-    team = payload.team if payload.team is not None else _default_team(payload.category)
+    team = _default_team(payload.category)
     
-    # Compute SLA fields from database policy
-    sla_fields = await compute_sla_fields(
-        db,
-        created_at,
-        payload.priority,
-        payload.category,
-        risk_level,
-    )
+    sla_due_at = compute_sla_due_at(created_at, payload.priority)
 
     for attempt in range(5):
         ticket_number = await generate_ticket_number(db, created_at.year)
@@ -158,11 +185,7 @@ async def create_ticket(
             team=team,
             status=ticket_status,
             ai_summary=payload.ai_summary,
-            sla_due_at=sla_fields["sla_due_at"],
-            sla_response_hours=sla_fields["sla_response_hours"],
-            sla_resolution_hours=sla_fields["sla_resolution_hours"],
-            sla_response_due=sla_fields["sla_response_due"],
-            sla_resolution_due=sla_fields["sla_resolution_due"],
+            sla_due_at=sla_due_at,
             created_at=created_at,
             updated_at=created_at,
         )
@@ -194,17 +217,14 @@ async def create_ticket(
         # If the ticket is high-risk, create an approval_required event so the
         # email_worker can notify approvers.
         if risk_level == RiskLevel.HIGH:
-            db.add(
-                TimelineEvent(
-                    ticket_id=ticket.id,
-                    event_type=TimelineEventType.APPROVAL_REQUESTED,
-                    actor_id=actor.id if actor else None,
-                    actor_email=actor.email if actor else payload.requester_email,
-                    content=f"High-risk ticket {ticket.ticket_number} requires approval",
-                    is_public=False,
-                    channel="system",
-                    created_at=created_at,
-                )
+            await _add_approval_request(
+                db,
+                ticket,
+                actor=actor,
+                actor_email=payload.requester_email,
+                channel=payload.source.value,
+                ip_address=ip_address,
+                created_at=created_at,
             )
 
         # Create notifications for all staff users
@@ -259,6 +279,25 @@ async def create_ticket(
 
                     if changes:
                         created_ticket.updated_at = utc_now()
+                        if (
+                            created_ticket.risk_level == RiskLevel.HIGH
+                            and created_ticket.status
+                            not in {TicketStatus.WAITING_APPROVAL, TicketStatus.RESOLVED, TicketStatus.CLOSED}
+                        ):
+                            old_status = created_ticket.status
+                            created_ticket.status = TicketStatus.WAITING_APPROVAL
+                            changes["status"] = {
+                                "from": _json_safe(old_status),
+                                "to": _json_safe(created_ticket.status),
+                            }
+                            await _add_approval_request(
+                                db,
+                                created_ticket,
+                                actor=actor,
+                                actor_email=payload.requester_email,
+                                channel=payload.source.value,
+                                ip_address=ip_address,
+                            )
                         db.add(
                             TimelineEvent(
                                 ticket_id=created_ticket.id,
@@ -361,19 +400,7 @@ async def update_ticket(
 
     ticket.updated_at = utc_now()
     if "priority" in changes:
-        # Recalculate SLA fields when priority changes
-        sla_fields = await compute_sla_fields(
-            db,
-            ticket.updated_at,
-            ticket.priority,
-            ticket.category,
-            ticket.risk_level,
-        )
-        ticket.sla_due_at = sla_fields["sla_due_at"]
-        ticket.sla_response_hours = sla_fields["sla_response_hours"]
-        ticket.sla_resolution_hours = sla_fields["sla_resolution_hours"]
-        ticket.sla_response_due = sla_fields["sla_response_due"]
-        ticket.sla_resolution_due = sla_fields["sla_resolution_due"]
+        ticket.sla_due_at = compute_sla_due_at(ticket.updated_at, ticket.priority)
         if old_sla_due_at != ticket.sla_due_at:
             changes["sla_due_at"] = {"from": _json_safe(old_sla_due_at), "to": _json_safe(ticket.sla_due_at)}
 

@@ -3,22 +3,12 @@ import { useState } from 'react';
 import Brand from '../../components/common/Brand';
 import authService from '../../services/authService.js';
 
-const roles = [
-  ['intern', 'Intern'],
-  ['employee', 'Employee'],
-  ['agent', 'Agent'],
-  ['security_admin', 'Security Admin'],
-  ['manager', 'Manager'],
-  ['administrator', 'Administrator'],
-];
-
 export default function Register() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
     email: '',
     fullName: '',
     password: '',
-    role: 'intern',
   });
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -33,7 +23,7 @@ export default function Register() {
     setError('');
     setIsSubmitting(true);
     try {
-      await authService.register(form.email, form.fullName, form.password, form.role);
+      await authService.register(form.email, form.fullName, form.password);
       navigate('/login', { replace: true });
     } catch {
       setError('Registration failed. The email may already be registered.');
@@ -49,7 +39,7 @@ export default function Register() {
         <div className="login-panel__intro">
           <p className="eyebrow">Secure service operations</p>
           <h1>Create your SecureDesk account</h1>
-          <p>Register a requester, agent, security, manager, or admin account.</p>
+          <p>New accounts are created as Employee by default. Contact your administrator to assign a different role.</p>
         </div>
         <form className="login-form" onSubmit={submitRegister}>
           <label>
@@ -63,16 +53,6 @@ export default function Register() {
           <label>
             Password
             <input name="password" type="password" minLength="8" required value={form.password} onChange={updateField} />
-          </label>
-          <label>
-            Role
-            <select name="role" value={form.role} onChange={updateField}>
-              {roles.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
           </label>
           {error && <p className="form-error" role="alert">{error}</p>}
           <button className="primary-button" type="submit" disabled={isSubmitting}>

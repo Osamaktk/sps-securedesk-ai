@@ -26,6 +26,12 @@ from models.user import User, UserRole
 
 router = APIRouter(tags=["events"])
 
+# Maximum number of events returned per poll cycle to prevent unbounded
+# memory/resource usage. The email_worker polls every ~10 seconds, so at
+# most 100 events are processed per cycle. Cursor-based pagination via
+# since_event_id ensures no events are skipped across cycles.
+DEFAULT_PAGE_LIMIT = 100
+
 EVENT_TYPE_MAP: dict[TimelineEventType, str] = {
     TimelineEventType.TICKET_CREATED: "ticket_created",
     TimelineEventType.AGENT_REPLY_PORTAL: "agent_reply",
@@ -133,6 +139,7 @@ async def email_events_feed(
         )
         .where(TimelineEvent.event_type.in_(FORWARDED_EVENT_TYPES))
         .order_by(TimelineEvent.created_at.asc(), TimelineEvent.id.asc())
+        .limit(DEFAULT_PAGE_LIMIT)
     )
 
     if since_event_id:

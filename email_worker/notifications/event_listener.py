@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional
 
 from email_worker.api_client.ticket_client import TicketClient
 from email_worker.config.settings import settings
@@ -50,13 +50,10 @@ class EventListener:
         self.email_sender = email_sender or EmailSender()
         self._running = False
         self._last_event_id: Optional[str] = None
-        self._processed_event_ids: Set[str] = set()
         self._poll_interval: int = settings.imap_poll_interval_seconds
 
     async def _process_event(self, event: Dict[str, Any]) -> None:
         event_id = event.get("id", "")
-        if event_id and event_id in self._processed_event_ids:
-            return
 
         try:
             backend_event = BackendEvent(**event)
@@ -162,6 +159,9 @@ class EventListener:
             else:
                 logger.warning("Unknown event type: %s", backend_event.event_type)
 
+            if event_id:
+                self._last_event_id = event_id
+
         except Exception as e:
             logger.error(
                 "Failed to send email for event %s: %s",
@@ -169,10 +169,6 @@ class EventListener:
                 e,
                 exc_info=True,
             )
-
-        if event_id:
-            self._processed_event_ids.add(event_id)
-            self._last_event_id = event_id
 
     async def poll_events(self) -> int:
         """Poll the backend for new email events and process them."""

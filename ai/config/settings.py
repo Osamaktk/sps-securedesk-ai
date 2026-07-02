@@ -26,7 +26,7 @@ class Settings(BaseSettings):
         "http://localhost:5199,http://127.0.0.1:5199"
     )
 
-    llm_provider: str = "anthropic"
+    llm_provider: str = "openrouter"
 
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-4-20250514"

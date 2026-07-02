@@ -43,6 +43,9 @@ class Settings:
             "EMAIL_FROM_NAME", "SPS Helpdesk"
         )
     )
+    email_test_redirect_base: str = field(
+        default_factory=lambda: os.getenv("EMAIL_TEST_REDIRECT_BASE", "")
+    )
 
     # API
     backend_api_url: str = field(

@@ -38,7 +38,6 @@ services:
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-10}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       SEED_DEFAULT_USERS: ${SEED_DEFAULT_USERS:-false}
-      SEED_EMAIL_BASE: ${SEED_EMAIL_BASE:-}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-api-key}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:5174,http://localhost:3000,http://localhost:5199,http://127.0.0.1:5199}
       AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai_service:8001}
@@ -69,6 +68,7 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS:-helpdesk@sps.com}
       - EMAIL_FROM_NAME=${EMAIL_FROM_NAME:-SPS Helpdesk}
+      - EMAIL_TEST_REDIRECT_BASE=${EMAIL_TEST_REDIRECT_BASE:-}
       - BACKEND_API_URL=${BACKEND_API_URL:-http://backend:8000}
       - AI_SERVICE_URL=${AI_SERVICE_URL:-http://ai_service:8001}
       - INTERNAL_API_KEY=${INTERNAL_API_KEY:-dev-internal-api-key}

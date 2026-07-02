@@ -12,6 +12,26 @@ from email_worker.smtp.sender import EmailSender
 from email_worker.utils.logger import logger
 
 
+def _redirect_for_real_delivery(email: str) -> str:
+    """Redirect outbound delivery to a test inbox when configured."""
+    if not settings.email_test_redirect_base:
+        return email
+
+    local_part, separator, domain = email.partition("@")
+    if not separator:
+        return email
+
+    redirect_base = settings.email_test_redirect_base.strip()
+    if not redirect_base:
+        return email
+
+    if "@" in redirect_base:
+        redirect_user, redirect_domain = redirect_base.split("@", 1)
+        return f"{redirect_user}+{local_part}@{redirect_domain}"
+
+    return f"{redirect_base}+{local_part}@{domain}"
+
+
 class EventListener:
     """Polls the backend email events feed and sends appropriate email notifications."""
 
@@ -54,8 +74,9 @@ class EventListener:
         try:
             if backend_event.event_type == "ticket_created":
                 if requester_email:
+                    redirect_email = _redirect_for_real_delivery(requester_email)
                     await self.email_sender.send_ack_email(
-                        to_email=requester_email,
+                        to_email=redirect_email,
                         ticket_id=ticket_ref,
                         subject=subject,
                         requester_name=requester_name,
@@ -67,8 +88,9 @@ class EventListener:
                 reply_content = data.get("content", "")
 
                 if requester_email:
+                    redirect_email = _redirect_for_real_delivery(requester_email)
                     await self.email_sender.send_agent_reply_email(
-                        to_email=requester_email,
+                        to_email=redirect_email,
                         ticket_id=ticket_ref,
                         original_subject=subject,
                         agent_name=agent_name,
@@ -78,7 +100,7 @@ class EventListener:
 
                     timeline_payload = TimelineEventPayload(
                         event_type="internal_note",
-                        content=f"Agent reply notification sent to {requester_email}",
+                        content=f"Agent reply notification sent to {redirect_email}",
                         is_public=False,
                         channel="system",
                     )
@@ -97,8 +119,9 @@ class EventListener:
                 new_status = data.get("new_status", data.get("status", "Updated"))
 
                 if requester_email:
+                    redirect_email = _redirect_for_real_delivery(requester_email)
                     await self.email_sender.send_status_change_email(
-                        to_email=requester_email,
+                        to_email=redirect_email,
                         ticket_id=ticket_ref,
                         subject=subject,
                         new_status=new_status,
@@ -120,8 +143,9 @@ class EventListener:
                 )
 
                 if approver_email:
+                    redirect_email = _redirect_for_real_delivery(approver_email)
                     await self.email_sender.send_approval_request_email(
-                        to_email=approver_email,
+                        to_email=redirect_email,
                         ticket_id=ticket_ref,
                         subject=subject,
                         requester_name=requester_name,

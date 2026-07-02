@@ -1,7 +1,9 @@
 from functools import lru_cache
 
-from chromadb.api.types import EmbeddingFunction
-from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+from chromadb.utils.embedding_functions import (
+    DefaultEmbeddingFunction,
+    EmbeddingFunction,
+)
 
 
 @lru_cache

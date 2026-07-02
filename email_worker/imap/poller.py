@@ -279,7 +279,7 @@ class IMAPPoller:
         content = email_data.plain_text_body or email_data.html_body or "(no content)"
 
         event_payload = TimelineEventPayload(
-            event_type="email_reply",
+            event_type="email_received",
             content=content,
         )
 

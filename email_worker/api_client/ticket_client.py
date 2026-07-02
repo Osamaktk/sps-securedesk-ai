@@ -158,7 +158,7 @@ class TicketClient:
         client = await self._get_backend_client()
         params: Dict[str, str] = {}
         if last_event_id:
-            params["after"] = last_event_id
+            params["since_event_id"] = last_event_id
         headers = {}
         if settings.internal_api_key:
             headers["X-Internal-Api-Key"] = settings.internal_api_key

@@ -62,14 +62,7 @@ class IMAPPoller:
         self._processed_uids: Set[str] = set()
 
     async def _connect(self) -> aioimaplib.IMAP4_SSL:
-        """Connect to the IMAP server and login.
-
-        Returns:
-            An authenticated IMAP4_SSL client.
-
-        Raises:
-            ConnectionError: If connection or login fails.
-        """
+        """Connect to the IMAP server and login with proper SSL context."""
         logger.info(
             "Connecting to IMAP server %s:%d as %s",
             self.host,
@@ -78,7 +71,17 @@ class IMAPPoller:
         )
         try:
             if self.port == 993:
-                client = aioimaplib.IMAP4_SSL(host=self.host, port=self.port)
+                # Proper client SSL context for IMAP
+                import ssl
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = True
+                ssl_context.verify_mode = ssl.CERT_REQUIRED
+                
+                client = aioimaplib.IMAP4_SSL(
+                    host=self.host, 
+                    port=self.port,
+                    ssl_context=ssl_context
+                )
             else:
                 client = aioimaplib.IMAP4(host=self.host, port=self.port)
 
@@ -87,13 +90,9 @@ class IMAPPoller:
             await client.select("INBOX")
             logger.info("IMAP connection established and INBOX selected")
             return client
-        except (ConnectionRefusedError, TimeoutError, OSError) as e:
+        except Exception as e:
             logger.error("IMAP connection failed: %s", e)
             raise ConnectionError(f"IMAP connection failed: {e}") from e
-        except aioimaplib.AioimapException as e:
-            logger.error("IMAP login failed: %s", e)
-            raise ConnectionError(f"IMAP login failed: {e}") from e
-
     async def _ensure_connected(self) -> aioimaplib.IMAP4_SSL:
         """Ensure we have an active IMAP connection, reconnecting if needed.
 

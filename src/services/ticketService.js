@@ -181,6 +181,7 @@ function toBackendFilters(filters = {}) {
     team: filters.team ? toTeam(filters.team) : undefined,
     source: filters.source,
     assigned_to_me: filters.assigned_to_me || filters.assignedToMe,
+    requester_email: filters.requester_email || filters.requesterEmail,
   });
 }
 
@@ -217,6 +218,16 @@ export async function getTickets(filters = {}) {
 
 export async function getTicket(id) {
   const response = await api.get(`/tickets/${id}`);
+  return normalizeTicket(response.data);
+}
+
+export async function assignTicket(id, data) {
+  const response = await api.post(`/tickets/${id}/assign`, data);
+  return normalizeTicket(response.data);
+}
+
+export async function escalateTicket(id, data) {
+  const response = await api.post(`/tickets/${id}/escalate`, data);
   return normalizeTicket(response.data);
 }
 
@@ -281,11 +292,15 @@ export async function addTicketAttachment(id, attachmentOrFile) {
 }
 
 export function createTicketFromChat(data) {
-  return createTicket({ ...data, source: 'chat' });
+  return createTicket({ ...data, source: 'ai_chat' });
 }
 
 export function createTicketFromForm(data) {
-  return createTicket({ ...data, source: 'portal_form' });
+  return createTicket({ ...data, source: 'form' });
+}
+
+export function createTicketFromDashboard(data) {
+  return createTicket({ ...data, source: 'dashboard' });
 }
 
 const ticketService = {
@@ -303,6 +318,8 @@ const ticketService = {
   addTicketAttachment,
   createTicketFromChat,
   createTicketFromForm,
+  assignTicket,
+  escalateTicket,
 };
 
 export default ticketService;

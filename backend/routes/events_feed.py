@@ -113,7 +113,11 @@ def _build_event_output(
         "id": str(event.id),
         "event_type": mapped_type,
         "ticket_id": str(event.ticket_id),
+<<<<<<< HEAD
+        "ticket_number": ticket.ticket_number,  # Add friendly ticket number (SPS-2026-116)
+=======
         "ticket_number": ticket.ticket_number,
+>>>>>>> 62b75b58065f4026f863e06d9693a1f862477c41
         "data": data,
     }
 

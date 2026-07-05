@@ -107,3 +107,9 @@ class TicketDetailRead(TicketRead):
 class ApprovalRequest(BaseModel):
     decision: str = Field(pattern="^(approved|rejected)$")
     reason: str = Field(min_length=1)
+
+
+class TicketEscalation(BaseModel):
+    team: TicketTeam
+    note: str = Field(min_length=1)
+    actor_id: uuid.UUID | None = None

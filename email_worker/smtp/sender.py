@@ -285,3 +285,99 @@ class EmailSender:
             plain_text_body=plain_text_body,
             ticket_id=ticket_id,
         )
+
+    async def send_duplicate_notice_email(
+        self,
+        to_email: str,
+        to_name: str,
+        existing_ticket_number: str,
+        existing_ticket_status: str,
+        existing_ticket_subject: str,
+    ) -> str:
+        """Send a duplicate ticket notice email.
+
+        Args:
+            to_email: Recipient email address.
+            to_name: Recipient display name.
+            existing_ticket_number: The existing ticket number.
+            existing_ticket_status: Current status of the existing ticket.
+            existing_ticket_subject: Subject of the existing ticket.
+
+        Returns:
+            The Message-ID of the sent email.
+        """
+        data = EmailTemplateData(
+            ticket_id=existing_ticket_number,
+            subject=existing_ticket_subject,
+            requester_name=to_name or to_email,
+            requester_email=to_email,
+            status=existing_ticket_status,
+            portal_url=settings.portal_url,
+        )
+
+        email_subject = f"[{existing_ticket_number}] We already have your request"
+        html_body = self._render_template("duplicate_notice.html", data)
+        plain_text_body = (
+            f"Dear {data.requester_name},\n\n"
+            f"We already have an open request from you with similar content.\n\n"
+            f"Existing Ticket: {existing_ticket_number}\n"
+            f"Status: {existing_ticket_status}\n"
+            f"Subject: {existing_ticket_subject}\n\n"
+            f"No new ticket has been created.\n\n"
+            f"View your existing ticket: {settings.portal_url}/tickets/{existing_ticket_number}\n\n"
+            f"Thank you,\n{settings.email_from_name}"
+        )
+
+        return await self.send_email(
+            to_email=to_email,
+            subject=email_subject,
+            html_body=html_body,
+            plain_text_body=plain_text_body,
+            ticket_id=existing_ticket_number,
+        )
+
+    async def send_ticket_locked_email(
+        self,
+        to_email: str,
+        to_name: str,
+        ticket_number: str,
+        ticket_status: str,
+    ) -> str:
+        """Send a ticket locked notification email.
+
+        Args:
+            to_email: Recipient email address.
+            to_name: Recipient display name.
+            ticket_number: The ticket number.
+            ticket_status: Current status of the ticket.
+
+        Returns:
+            The Message-ID of the sent email.
+        """
+        data = EmailTemplateData(
+            ticket_id=ticket_number,
+            subject="",
+            requester_name=to_name or to_email,
+            requester_email=to_email,
+            status=ticket_status,
+            portal_url=settings.portal_url,
+        )
+
+        email_subject = f"[{ticket_number}] This ticket is closed"
+        html_body = self._render_template("ticket_locked.html", data)
+        plain_text_body = (
+            f"Dear {data.requester_name},\n\n"
+            f"This ticket is closed and cannot be updated.\n\n"
+            f"Ticket: {ticket_number}\n"
+            f"Status: {ticket_status}\n\n"
+            f"To submit a new request, visit: {settings.portal_url}/new\n\n"
+            f"Thank you,\n{settings.email_from_name}"
+        )
+
+        return await self.send_email(
+            to_email=to_email,
+            subject=email_subject,
+            html_body=html_body,
+            plain_text_body=plain_text_body,
+            ticket_id=ticket_number,
+        )

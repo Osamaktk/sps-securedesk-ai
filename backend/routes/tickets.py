@@ -8,7 +8,7 @@ from database import get_db
 from middleware.auth_middleware import get_current_user, get_optional_current_user, require_min_role
 from models.ticket import TicketCategory, TicketSource, TicketStatus, TicketTeam
 from models.user import User, UserRole
-from schemas.ticket import TicketCreate, TicketDetailRead, TicketRead, TicketUpdate
+from schemas.ticket import TicketCreate, TicketDetailRead, TicketEscalation, TicketRead, TicketUpdate
 from services import ticket_service
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
@@ -37,6 +37,7 @@ async def list_tickets(
     team: TicketTeam | None = None,
     source: TicketSource | None = None,
     assigned_to_me: bool = False,
+    requester_email: str | None = None,
 ):
     return await ticket_service.list_tickets(
         db,
@@ -46,6 +47,7 @@ async def list_tickets(
         team=team,
         source=source,
         assigned_to_me=assigned_to_me,
+        requester_email=requester_email,
     )
 
 
@@ -72,3 +74,27 @@ async def update_ticket(
     current_user: Annotated[User, Depends(require_min_role(UserRole.AGENT))],
 ):
     return await ticket_service.update_ticket(db, ticket_id, payload, current_user, ip_address=_client_ip(request))
+
+
+@router.post("/{ticket_id}/escalate", response_model=TicketDetailRead)
+async def escalate_ticket(
+    ticket_id: uuid.UUID,
+    payload: TicketEscalation,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_min_role(UserRole.AGENT))],
+):
+    ticket = await ticket_service.get_ticket_by_id(db, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    if not ticket_service.user_can_view_ticket(current_user, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+    return await ticket_service.escalate_ticket(
+        db,
+        ticket_id,
+        payload.team,
+        payload.note,
+        current_user,
+        ip_address=_client_ip(request),
+    )

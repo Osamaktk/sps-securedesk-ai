@@ -30,16 +30,43 @@ const quickActions = [
   },
 ];
 
+function sourceIcon(source) {
+  const icons = {
+    email: '📧',
+    portal_form: '📋',
+    form: '📋',
+    chat: '🤖',
+    ai_chat: '🤖',
+    dashboard: '🖥',
+  };
+  return icons[source] || '📋';
+}
+
+function sourceLabel(source) {
+  const labels = {
+    email: 'Email',
+    portal_form: 'Form',
+    form: 'Form',
+    chat: 'AI Chat',
+    ai_chat: 'AI Chat',
+    dashboard: 'Dashboard',
+  };
+  return labels[source] || source;
+}
+
 export default function RequesterDashboard() {
   const [tickets, setTickets] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const currentUser = authService.getCurrentUser();
+  const displayName = currentUser?.full_name || currentUser?.name || currentUser?.email || 'Requester';
 
   useEffect(() => {
     setError('');
     setIsLoading(true);
-    getTickets()
+    const email = currentUser?.email || '';
+    getTickets({ requesterEmail: email })
       .then(setTickets)
       .catch(() => setError('Your ticket summary could not be loaded from the backend.'))
       .finally(() => setIsLoading(false));
@@ -49,10 +76,10 @@ export default function RequesterDashboard() {
   if (isLoading) return <AsyncState title="Loading requester dashboard" description="Preparing your ticket summary." />;
 
   const openTickets = tickets.filter(
-    (ticket) => !['resolved', 'closed'].includes(ticket.status),
+    (ticket) => !['resolved', 'closed', 'duplicate'].includes(ticket.status),
   );
   const resolvedTickets = tickets.filter((ticket) =>
-    ['resolved', 'closed'].includes(ticket.status),
+    ['resolved', 'closed', 'duplicate'].includes(ticket.status),
   );
   const waitingUser = tickets.filter((ticket) => ticket.status === 'waiting_user');
   const recentTickets = [...tickets]
@@ -64,7 +91,7 @@ export default function RequesterDashboard() {
       <div className="page-heading">
         <div>
           <p className="eyebrow">Requester portal</p>
-          <h1>Welcome, {authService.getCurrentUser()?.email || 'Requester'}</h1>
+          <h1>Welcome, {displayName}</h1>
           <p>
             Submit requests, get AI-guided help, and track every support channel
             from one workspace.
@@ -125,7 +152,7 @@ export default function RequesterDashboard() {
           {recentTickets.map((ticket) => (
             <Link key={ticket.id} to={`/requester/tickets/${ticket.id}`}>
               <span className="requester-recent-list__source">
-                <Badge value={ticket.source} />
+                <Badge value={`${sourceIcon(ticket.source)} ${sourceLabel(ticket.source)}`} />
               </span>
               <span className="requester-recent-list__content">
                 <strong>{ticket.subject}</strong>

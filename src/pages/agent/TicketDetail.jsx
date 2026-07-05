@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import AsyncState from '../../components/common/AsyncState';
 import Badge from '../../components/common/Badge';
+import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
+import EscalationDialog from '../../components/tickets/EscalationDialog';
 import TicketPriorityBadge from '../../components/tickets/TicketPriorityBadge';
 import TicketReplyBox from '../../components/tickets/TicketReplyBox';
 import TicketStatusBadge from '../../components/tickets/TicketStatusBadge';
 import TicketTimeline from '../../components/tickets/TicketTimeline';
-import { addEvent, getTicket, updateTicket } from '../../services/ticketService.js';
+import { addEvent, assignTicket, escalateTicket, getTicket, updateTicket, updateTicketStatus } from '../../services/ticketService.js';
 
 function riskTone(risk) {
   if (risk === 'High Risk') return 'red';
@@ -21,6 +23,7 @@ export default function TicketDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const [showEscalationDialog, setShowEscalationDialog] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -45,6 +48,31 @@ export default function TicketDetail() {
   const reloadTicket = async () => {
     const updated = await getTicket(ticket.id);
     setTicket(updated);
+  };
+
+  const handleAssign = async () => {
+    setError('');
+    try {
+      await assignTicket(ticket.id, { agent_id: 'agent-001', actor_id: 'agent-001' });
+      await reloadTicket();
+    } catch {
+      setError('Assignment could not be saved.');
+    }
+  };
+
+  const handleEscalate = async (escalationData) => {
+    setError('');
+    try {
+      await escalateTicket(ticket.id, {
+        actor_id: 'agent-001',
+        note: escalationData.note,
+        team: escalationData.team,
+      });
+      setShowEscalationDialog(false);
+      await reloadTicket();
+    } catch {
+      setError('Escalation could not be saved.');
+    }
   };
 
   const addComment = async (eventType, message, isPublic) => {
@@ -85,11 +113,25 @@ export default function TicketDetail() {
     );
   }
 
+  const lockedStatuses = ['closed', 'duplicate', 'resolved'];
+  const isLocked = lockedStatuses.includes(ticket.status);
+
   return (
     <section className="page ticket-detail-page">
       <Link className="ticket-detail-back" to="/agent/queue">
-        &lt; Back to ticket queue
+        {'<'} Back to ticket queue
       </Link>
+
+      {isLocked && (
+        <div className="ticket-locked-banner" style={{ backgroundColor: '#fff3cd', border: '1px solid #ffc107', borderRadius: '8px', padding: '16px 24px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: '15px', color: '#856404' }}>
+            🔒 This ticket is {ticket.status}. Need more help? Submit a new request.
+          </span>
+          <Link className="button button--primary" to="/requester/submit" style={{ backgroundColor: '#0055a5', color: '#fff', padding: '8px 20px', borderRadius: '6px', textDecoration: 'none', fontSize: '14px', fontWeight: 600 }}>
+            New Request
+          </Link>
+        </div>
+      )}
 
       <header className="ticket-detail-header">
         <div>
@@ -101,6 +143,14 @@ export default function TicketDetail() {
           </p>
         </div>
         <div className="ticket-detail-header__badges">
+          <div className="ticket-detail-header__actions">
+            <Button variant="outline" disabled={isLocked} onClick={handleAssign}>
+              {ticket.assignedAgentId ? 'Reassign' : 'Assign to agent'}
+            </Button>
+            <Button variant="outline" disabled={isLocked} onClick={() => setShowEscalationDialog(true)}>
+              Escalate
+            </Button>
+          </div>
           <TicketStatusBadge status={ticket.status} />
           <TicketPriorityBadge priority={ticket.priority} />
           <Badge tone={riskTone(ticket.risk)}>{ticket.risk}</Badge>
@@ -119,19 +169,21 @@ export default function TicketDetail() {
             <TicketTimeline events={ticket.timeline} />
           </Card>
 
-          <Card
-            className="ticket-detail-reply-card"
-            title="Reply and Update"
-            subtitle="Public replies and internal notes are added to the same timeline."
-          >
-            <TicketReplyBox
-              currentStatus={ticket.status}
-              onAddNote={(message) => addComment('internal_note', message, false)}
-              onResolve={() => changeStatus('resolved')}
-              onSendReply={(message) => addComment('agent_reply_portal', message, true)}
-              onUpdateStatus={changeStatus}
-            />
-          </Card>
+          {!isLocked && (
+            <Card
+              className="ticket-detail-reply-card"
+              title="Reply and Update"
+              subtitle="Public replies and internal notes are added to the same timeline."
+            >
+              <TicketReplyBox
+                currentStatus={ticket.status}
+                onAddNote={(message) => addComment('internal_note', message, false)}
+                onResolve={() => changeStatus('resolved')}
+                onSendReply={(message) => addComment('agent_reply_portal', message, true)}
+                onUpdateStatus={changeStatus}
+              />
+            </Card>
+          )}
         </main>
 
         <aside className="ticket-detail-side">
@@ -152,11 +204,68 @@ export default function TicketDetail() {
               </div>
               <div>
                 <dt>Category</dt>
-                <dd>{ticket.categoryLabel}</dd>
+                <dd>
+                  <select
+                    className="ticket-detail-edit"
+                    value={ticket.category}
+                    onChange={(e) => updateTicket(ticket.id, { category: e.target.value }).then(reloadTicket).catch(() => setError('Category update failed.'))}
+                  >
+                    <option value="access_and_identity">Access and Identity</option>
+                    <option value="hardware">Hardware</option>
+                    <option value="software">Software</option>
+                    <option value="network">Network</option>
+                    <option value="email">Email</option>
+                    <option value="security">Security</option>
+                    <option value="other">Other</option>
+                  </select>
+                </dd>
+              </div>
+              <div>
+                <dt>Priority</dt>
+                <dd>
+                  <select
+                    className="ticket-detail-edit"
+                    value={ticket.priority}
+                    onChange={(e) => updateTicket(ticket.id, { priority: e.target.value }).then(reloadTicket).catch(() => setError('Priority update failed.'))}
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </dd>
+              </div>
+              <div>
+                <dt>Risk</dt>
+                <dd>
+                  <select
+                    className="ticket-detail-edit"
+                    value={ticket.riskLevel || ticket.risk}
+                    onChange={(e) => updateTicket(ticket.id, { risk: e.target.value }).then(reloadTicket).catch(() => setError('Risk update failed.'))}
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </dd>
               </div>
               <div>
                 <dt>Assigned team</dt>
-                <dd>{ticket.assignedTeam}</dd>
+                <dd>
+                  <select
+                    className="ticket-detail-edit"
+                    value={ticket.team}
+                    onChange={(e) => updateTicket(ticket.id, { team: e.target.value }).then(reloadTicket).catch(() => setError('Team update failed.'))}
+                  >
+                    <option value="service_desk">Service Desk</option>
+                    <option value="identity_and_access">Identity and Access</option>
+                    <option value="infrastructure">Infrastructure</option>
+                    <option value="application_support">Application Support</option>
+                    <option value="network_operations">Network Operations</option>
+                    <option value="security_operations">Security Operations</option>
+                  </select>
+                </dd>
               </div>
               <div>
                 <dt>SLA</dt>
@@ -167,8 +276,19 @@ export default function TicketDetail() {
             </dl>
           </Card>
 
-          <Card title="AI Summary" subtitle="Classification and context summary.">
-            <p className="ticket-detail-ai-summary">{ticket.aiSummary}</p>
+          <Card title="AI Summary" subtitle="Classification and context summary. Override when needed.">
+            <textarea
+              className="ticket-detail-edit ticket-detail-edit--textarea"
+              value={ticket.aiSummary || ''}
+              onChange={(e) => setTicket((current) => ({ ...current, aiSummary: e.target.value }))}
+              onBlur={(e) => {
+                const value = e.target.value.trim();
+                if (value !== (ticket.aiSummary || '').trim()) {
+                  updateTicket(ticket.id, { ai_summary: value }).then(reloadTicket).catch(() => setError('AI summary update failed.'));
+                }
+              }}
+              rows={4}
+            />
           </Card>
 
           <Card title="Attachments" subtitle={`${ticket.attachments.length} files attached.`}>
@@ -196,6 +316,14 @@ export default function TicketDetail() {
           </Card>
         </aside>
       </div>
+
+      {showEscalationDialog && (
+        <EscalationDialog
+          ticket={ticket}
+          onEscalate={handleEscalate}
+          onCancel={() => setShowEscalationDialog(false)}
+        />
+      )}
     </section>
   );
 }

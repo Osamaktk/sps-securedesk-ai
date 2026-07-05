@@ -28,9 +28,19 @@ class ChatSession:
     messages: list[ChatMessage] = field(default_factory=list)
     question_counts: Counter[str] = field(default_factory=Counter)
     lock: RLock = field(default_factory=RLock, repr=False)
+    ticket_id: str | None = None
+    ticket_number: str | None = None
     last_activity: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
+
+    def set_ticket(self, ticket_id: str | None, ticket_number: str | None) -> None:
+        """Store the ticket associated with this chat session."""
+        if ticket_id is not None:
+            self.ticket_id = ticket_id
+        if ticket_number is not None:
+            self.ticket_number = ticket_number
+        self.last_activity = datetime.now(timezone.utc)
 
     def add_message(self, role: str, content: str) -> None:
         now = datetime.now(timezone.utc)

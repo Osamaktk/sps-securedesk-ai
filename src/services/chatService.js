@@ -20,8 +20,17 @@ export function getInitialMessages() {
   ]);
 }
 
-export async function sendMessage(session_id, message, user_id) {
-  const response = await aiApi.post('/api/chat', { session_id, message, user_id });
+export async function getCategories() {
+  const response = await aiApi.get('/api/chat/categories');
+  return response.data;
+}
+
+export async function sendMessage(session_id, message, user_id, requester_email) {
+  const params = { session_id, message, user_id };
+  if (requester_email) {
+    params.requester_email = requester_email;
+  }
+  const response = await aiApi.post('/api/chat', params);
   return response.data;
 }
 
@@ -29,10 +38,16 @@ export async function createTicketFromEscalation(draft) {
   return createTicketFromChat(draft);
 }
 
+export async function enhanceDescription(subject, description) {
+  const response = await aiApi.post('/api/summarise', { subject, description });
+  return response.data;
+}
+
 const chatService = {
   getInitialMessages,
   sendMessage,
   createTicketFromEscalation,
+  enhanceDescription,
 };
 
 export default chatService;

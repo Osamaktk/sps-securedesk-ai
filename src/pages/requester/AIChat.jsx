@@ -4,10 +4,10 @@ import ChatMessage from '../../components/chat/ChatMessage';
 import ChatSuggestions from '../../components/chat/ChatSuggestions';
 import CreateTicketFromChat from '../../components/chat/CreateTicketFromChat';
 import Badge from '../../components/common/Badge';
-import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
-import { createTicketFromEscalation, getInitialMessages, sendMessage } from '../../services/chatService.js';
+import { createTicketFromEscalation, getInitialMessages, sendMessage, getCategories } from '../../services/chatService.js';
 import authService from '../../services/authService.js';
+import { addTicketAttachment } from '../../services/ticketService.js';
 
 const knowledgeTopics = [
   'VPN',
@@ -86,8 +86,9 @@ export default function AIChat() {
   const [isLoading, setIsLoading] = useState(true);
   const [showEscalation, setShowEscalation] = useState(false);
   const [ticketDraft, setTicketDraft] = useState(initialTicketDraft);
-  const [ticketConfirmation, setTicketConfirmation] = useState('');
   const [error, setError] = useState('');
+  const [categories, setCategories] = useState([]);
+  const [expandedCategory, setExpandedCategory] = useState(null);
   const conversationRef = useRef(null);
   const sessionId = useMemo(() => `chat-${crypto.randomUUID?.() || Date.now()}`, []);
   const currentUser = authService.getCurrentUser();
@@ -99,6 +100,12 @@ export default function AIChat() {
       if (!isMounted) return;
       setMessages(initialMessages);
       setIsLoading(false);
+    });
+
+    getCategories().then((data) => {
+      if (isMounted) setCategories(data || []);
+    }).catch(() => {
+      if (isMounted) setCategories([]);
     });
 
     return () => {
@@ -117,6 +124,7 @@ export default function AIChat() {
       return;
     }
 
+    setExpandedCategory(null);
     setError('');
     setMessages((current) => [...current, createUserMessage(content)]);
     setIsLoading(true);
@@ -126,7 +134,12 @@ export default function AIChat() {
       setMessages((current) => [...current, createAssistantMessage(response)]);
       const draft = normalizeTicketPrefill(response.ticket_prefill, content);
       setTicketDraft(draft);
-      if (response.escalate) setShowEscalation(true);
+      if (response.suggested_categories && response.suggested_categories.length) {
+        setCategories(response.suggested_categories);
+      }
+      if (response.escalate) {
+        setShowEscalation(true);
+      }
     } catch {
       setError('The AI service could not be reached. Please confirm it is running on port 8001.');
     } finally {
@@ -134,14 +147,18 @@ export default function AIChat() {
     }
   };
 
-  const handleCreateTicket = async (draft = ticketDraft) => {
+  const handleCreateTicket = async (draft = ticketDraft, attachmentFile = null) => {
     const ticket = await createTicketFromEscalation({
       ...draft,
       description: draft.summary,
       aiSummary: draft.summary,
       requesterEmail: currentUser?.email || draft.requester_email || 'requester@example.com',
     });
-    setTicketConfirmation(`Ticket ${ticket.ticketNumber || ticket.id} created successfully.`);
+
+    if (attachmentFile && ticket?.id) {
+      await addTicketAttachment(ticket.id, attachmentFile);
+    }
+
     return ticket;
   };
 
@@ -190,9 +207,6 @@ export default function AIChat() {
                 draft={ticketDraft}
                 onContinue={() => setShowEscalation(false)}
                 onCreate={handleCreateTicket}
-                onCreated={(ticketNumber) =>
-                  setTicketConfirmation(`Ticket ${ticketNumber} created successfully.`)
-                }
               />
             )}
           </div>
@@ -207,57 +221,6 @@ export default function AIChat() {
         </section>
 
         <aside className="ai-chat-side-panel">
-          <Card
-            className="ai-chat-preview-card"
-            title="Ticket Preview"
-            subtitle="Prepared from the current AI conversation."
-            actions={<Badge value="chat" />}
-          >
-            <dl className="ai-chat-ticket-preview">
-              <div>
-                <dt>Suggested subject</dt>
-                <dd>{ticketDraft.subject}</dd>
-              </div>
-              <div>
-                <dt>Suggested category</dt>
-                <dd>{String(ticketDraft.category).replaceAll('_', ' ')}</dd>
-              </div>
-              <div className="ai-chat-ticket-preview__badges">
-                <span>
-                  <dt>Priority</dt>
-                  <dd>
-                    <Badge value={ticketDraft.priority} />
-                  </dd>
-                </span>
-                <span>
-                  <dt>Risk level</dt>
-                  <dd>
-                    <Badge tone={ticketDraft.risk === 'high' ? 'red' : 'green'}>
-                      {ticketDraft.risk}
-                    </Badge>
-                  </dd>
-                </span>
-                <span>
-                  <dt>Source</dt>
-                  <dd>
-                    <Badge value="chat" />
-                  </dd>
-                </span>
-              </div>
-            </dl>
-            <Button
-              className="ai-chat-ticket-preview__button"
-              onClick={() => handleCreateTicket(ticketDraft)}
-            >
-              Create Ticket
-            </Button>
-            {ticketConfirmation && (
-              <p className="ai-chat-ticket-confirmation" role="status">
-                {ticketConfirmation}
-              </p>
-            )}
-          </Card>
-
           <Card
             className="ai-chat-topics-card"
             title="Knowledge Base Topics"

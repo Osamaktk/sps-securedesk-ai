@@ -30,6 +30,9 @@ class TimelineEventType(str, Enum):
     FILE_UPLOADED = "file_uploaded"
     CHAT_ESCALATION = "chat_escalation"
     AI_CLASSIFIED = "ai_classified"
+    EMAIL_REPLY = "email_reply"
+    ESCALATED = "escalated"
+    DUPLICATE_ATTEMPT = "duplicate_attempt"
 
 
 def enum_values(enum_class: type[Enum]) -> list[str]:

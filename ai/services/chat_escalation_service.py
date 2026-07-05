@@ -5,6 +5,8 @@ import httpx
 from ai.chat.session import SessionStore, session_store
 from ai.config.settings import Settings, get_settings
 from ai.schemas.chat import ChatEscalationRequest, ChatEscalationResponse
+from ai.schemas.summariser import SummariserRequest
+from ai.summariser.summarise import summarise_text
 
 
 BACKEND_UNAVAILABLE_MESSAGE = (
@@ -28,7 +30,7 @@ class ChatEscalationService:
         request: ChatEscalationRequest,
     ) -> ChatEscalationResponse:
         # This verifies session ownership without clearing or changing its messages.
-        self._sessions.get_or_create(request.session_id, request.user_id)
+        session = self._sessions.get_or_create(request.session_id, request.user_id)
         payload = self._build_payload(request)
         url = f"{self._settings.backend_api_url.rstrip('/')}/tickets"
 
@@ -50,6 +52,8 @@ class ChatEscalationService:
             )
 
         ticket_id = self._ticket_id(backend_response)
+        session.set_ticket(ticket_id, ticket_id)
+
         return ChatEscalationResponse(
             success=True,
             ticket_id=ticket_id,
@@ -64,6 +68,26 @@ class ChatEscalationService:
             f"{prefill.timeline_note}\n\n"
             f"Original ticket prefill description: {prefill.description}"
         )
+
+        # High-risk tickets require approval before work can begin
+        status = prefill.status
+        if prefill.risk_level == "high":
+            status = "waiting_approval"
+
+        # Generate AI summary if not provided by the prefill
+        ai_summary = prefill.ai_summary
+        if ai_summary is None:
+            try:
+                summariser_request = SummariserRequest(
+                    subject=prefill.subject,
+                    description=prefill.description,
+                    messages=[],
+                )
+                summary_response = summarise_text(summariser_request)
+                ai_summary = summary_response.summary
+            except Exception:
+                pass
+
         return {
             "source": "chat",
             "requester": request.requester or request.user_id,
@@ -73,9 +97,9 @@ class ChatEscalationService:
             "priority": prefill.priority.value,
             "risk_level": prefill.risk_level,
             "team": prefill.team,
-            "status": prefill.status,
+            "status": status,
             "sla": prefill.sla,
-            "ai_summary": prefill.ai_summary,
+            "ai_summary": ai_summary,
             "timeline": [
                 {
                     "type": "chat_escalation_note",

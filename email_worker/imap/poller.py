@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Optional, Set
+from typing import Optional
 
 import aioimaplib
+import httpx
 
 from email_worker.api_client.ticket_client import TicketClient
 from email_worker.config.settings import settings
@@ -59,7 +60,11 @@ class IMAPPoller:
         self.email_sender = email_sender or EmailSender()
         self._client: Optional[aioimaplib.IMAP4_SSL] = None
         self._running = False
+<<<<<<< HEAD
+
+=======
         self._processed_uids: Set[str] = set()
+>>>>>>> 62b75b58065f4026f863e06d9693a1f862477c41
     async def _connect(self) -> aioimaplib.IMAP4_SSL:
         """Connect to the IMAP server with correct client SSL context."""
         logger.info(
@@ -92,6 +97,13 @@ class IMAPPoller:
         except Exception as e:
             logger.error("IMAP connection failed: %s", str(e))
             raise ConnectionError(f"IMAP connection failed: {e}") from e
+<<<<<<< HEAD
+        except aioimaplib.AioImapException as e:
+            logger.error("IMAP login failed: %s", e)
+            raise ConnectionError(f"IMAP login failed: {e}") from e
+
+=======
+>>>>>>> 62b75b58065f4026f863e06d9693a1f862477c41
     async def _ensure_connected(self) -> aioimaplib.IMAP4_SSL:
         """Ensure we have an active IMAP connection, reconnecting if needed.
 
@@ -104,7 +116,7 @@ class IMAPPoller:
 
         try:
             await self._client.noop()
-        except (aioimaplib.AioimapException, OSError, EOFError):
+        except (aioimaplib.AioImapException, OSError, EOFError):
             logger.warning("IMAP connection lost, reconnecting...")
             try:
                 await self._client.logout()
@@ -133,7 +145,7 @@ class IMAPPoller:
             uid_str = data[0].decode() if isinstance(data[0], bytes) else str(data[0])
             return uid_str.split() if uid_str.strip() else []
 
-        except (aioimaplib.AioimapException, OSError, EOFError) as e:
+        except (aioimaplib.AioImapException, OSError, EOFError) as e:
             logger.error("Failed to fetch unseen emails: %s", e)
             self._client = None
             return []
@@ -154,15 +166,31 @@ class IMAPPoller:
                 logger.warning("Failed to fetch UID %s: status=%s", uid, status)
                 return None
 
-            for part in data:
-                if isinstance(part, tuple) and len(part) >= 1:
-                    raw = part[1] if len(part) > 1 else part[0]
-                    if isinstance(raw, bytes):
-                        return raw
+            logger.info("IMAP fetch response for UID %s: %s", uid, str(data)[:200])
 
+            for part in data:
+                # Handle tuple format FIRST: (b'126 FETCH (RFC822 {6994}', bytearray(...))
+                # The tuple[1] contains the actual email, tuple[0] is just the IMAP response line
+                if isinstance(part, tuple) and len(part) >= 2:
+                    if isinstance(part[1], (bytes, bytearray)):
+                        email_bytes = bytes(part[1]) if isinstance(part[1], bytearray) else part[1]
+                        logger.info("✓ Extracted %d bytes from tuple[1] (type: %s)", len(email_bytes), type(part[1]).__name__)
+                        return email_bytes
+                # Handle direct bytes (fallback for simpler IMAP responses)
+                elif isinstance(part, (bytes, bytearray)):
+                    # Skip small bytes that look like IMAP protocol responses
+                    if len(part) < 100:
+                        logger.debug("Skipping small bytes part: %d bytes", len(part))
+                        continue
+                    email_bytes = bytes(part) if isinstance(part, bytearray) else part
+                    logger.info("✓ Extracted %d bytes from IMAP response (type: %s)", len(email_bytes), type(part).__name__)
+                    return email_bytes
+
+            logger.warning("No email content found in fetch response for UID %s", uid)
+            logger.warning("Data structure: %s", [type(p).__name__ for p in data])
             return None
 
-        except (aioimaplib.AioimapException, OSError, EOFError) as e:
+        except (aioimaplib.AioImapException, OSError, EOFError) as e:
             logger.error("Failed to fetch email UID %s: %s", uid, e)
             self._client = None
             return None
@@ -192,10 +220,31 @@ class IMAPPoller:
             email_data.subject,
         )
 
-        classify = await self.ticket_client.classify_email(
-            subject=email_data.subject,
-            description=email_data.plain_text_body or email_data.html_body or "",
-        )
+        try:
+            classify = await asyncio.wait_for(
+                self.ticket_client.classify_email(
+                    subject=email_data.subject,
+                    description=email_data.plain_text_body or email_data.html_body or "",
+                ),
+                timeout=60.0,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Classification timed out for email from %s, using fallback",
+                email_data.from_address,
+            )
+            classify = ClassifyResponse(
+                category="general_it", priority="medium", team="it"
+            )
+        except Exception as e:
+            logger.warning(
+                "Classification failed for email from %s: %s. Using fallback.",
+                email_data.from_address,
+                e,
+            )
+            classify = ClassifyResponse(
+                category="general_it", priority="medium", team="it"
+            )
         logger.info(
             "Classification result: category=%s, priority=%s, team=%s",
             classify.category,
@@ -228,21 +277,24 @@ class IMAPPoller:
         )
 
         ticket = await self.ticket_client.create_ticket(ticket_payload)
-        ticket_id: str = ticket.get("id", ticket.get("ticket_id", ""))
+        # Use ticket_number (SPS-2026-116) instead of id (UUID) for user-facing references
+        ticket_number: str = ticket.get("ticket_number", "")
+        ticket_uuid: str = ticket.get("id", "")
 
-        if not ticket_id:
-            logger.error("Ticket created but no ID returned: %s", ticket)
+        if not ticket_number or not ticket_uuid:
+            logger.error("Ticket created but missing number or ID: %s", ticket)
             return
 
         logger.info(
-            "Ticket %s created from email from %s",
-            ticket_id,
+            "Ticket %s (ID: %s) created from email from %s",
+            ticket_number,
+            ticket_uuid,
             email_data.from_address,
         )
 
         if email_data.message_id:
             message_store.save_message_mapping(
-                email_data.message_id, ticket_id
+                email_data.message_id, ticket_number
             )
 
         logger.info(
@@ -281,7 +333,13 @@ class IMAPPoller:
         """
         description = email_data.plain_text_body or email_data.html_body or ""
         try:
+<<<<<<< HEAD
+            await self.email_sender.send_ack_email(
+                to_email=email_data.from_address,
+                ticket_id=ticket_number,  # Use friendly ticket number (SPS-2026-116)
+=======
             reply = await self.ticket_client.request_ticket_reply(
+>>>>>>> 62b75b58065f4026f863e06d9693a1f862477c41
                 subject=email_data.subject,
                 description=description,
                 category=classify.category,
@@ -320,6 +378,13 @@ class IMAPPoller:
                 sources=sources,
             )
             logger.info(
+<<<<<<< HEAD
+                "Acknowledgment email sent for ticket %s", ticket_number
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to send ack email for ticket %s: %s", ticket_number, e
+=======
                 "Auto-reply sent and ticket %s resolved by AI: %s",
                 ticket_id,
                 result,
@@ -330,6 +395,7 @@ class IMAPPoller:
                 "— ticket remains OPEN",
                 ticket_id,
                 exc,
+>>>>>>> 62b75b58065f4026f863e06d9693a1f862477c41
             )
 
     async def _process_reply_email(
@@ -354,9 +420,39 @@ class IMAPPoller:
             content=content,
         )
 
-        await self.ticket_client.append_timeline_event(
-            ticket_id, event_payload
-        )
+        try:
+            await self.ticket_client.append_timeline_event(
+                ticket_id, event_payload
+            )
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 409:
+                try:
+                    error_data = e.response.json()
+                except Exception:
+                    error_data = {}
+                if isinstance(error_data, dict):
+                    ticket_status = error_data.get("status", "closed")
+                    ticket_number = error_data.get("ticket_number", ticket_id)
+                else:
+                    ticket_status = "closed"
+                    ticket_number = ticket_id
+
+                logger.warning(
+                    "Ticket %s is %s, cannot append reply. Sending locked notice.",
+                    ticket_number,
+                    ticket_status,
+                )
+                try:
+                    await self.email_sender.send_ticket_locked_email(
+                        to_email=email_data.from_address,
+                        to_name=email_data.from_address,
+                        ticket_number=ticket_number,
+                        ticket_status=ticket_status,
+                    )
+                except Exception as email_err:
+                    logger.error("Failed to send locked email notice: %s", email_err)
+                return
+            raise
 
         if email_data.message_id:
             message_store.save_message_mapping(
@@ -375,35 +471,51 @@ class IMAPPoller:
         Returns:
             The number of emails processed in this poll cycle.
         """
+        logger.info("=== Starting poll cycle ===")
         try:
             uids = await self._fetch_unseen_uids()
         except ConnectionError as e:
             logger.error("Cannot poll IMAP: %s", e)
             return 0
 
+        logger.info("Found %d unseen UIDs", len(uids))
         if not uids:
             return 0
 
-        new_uids = [uid for uid in uids if uid not in self._processed_uids]
-
-        if not new_uids:
-            logger.debug("All %d unseen UIDs already processed this session", len(uids))
-            return 0
-
-        logger.info("Processing %d new unseen emails", len(new_uids))
+        logger.info("Processing %d unseen emails", len(uids))
         processed = 0
 
-        for uid in new_uids:
+        for uid in uids:
+            logger.info("Starting to process UID %s", uid)
             try:
+                logger.info("Fetching email UID %s", uid)
                 raw_email = await self._fetch_email_by_uid(uid)
                 if raw_email is None:
+                    logger.warning("No raw email for UID %s, marking as seen", uid)
+                    await self._mark_as_seen(uid)
                     continue
 
-                email_data = parse_email(raw_email)
+                logger.info("Parsing email UID %s", uid)
+                try:
+                    email_data = await asyncio.wait_for(
+                        asyncio.get_event_loop().run_in_executor(None, parse_email, raw_email),
+                        timeout=10.0,
+                    )
+                except asyncio.TimeoutError:
+                    logger.error("Email parsing timed out for UID %s, will retry on next poll", uid)
+                    continue
+                    
                 if email_data is None:
-                    logger.warning("Failed to parse email UID %s, marking seen", uid)
+                    logger.warning("Failed to parse email UID %s, will retry on next poll", uid)
+                    continue
+
+                logger.info("Parsed email UID %s: from=%s, subject=%s", uid, email_data.from_address, email_data.subject[:50])
+
+                # Skip emails from helpdesk itself to prevent loops
+                if email_data.from_address == self.user:
+                    logger.warning("Skipping email from helpdesk address (loop prevention): %s", uid)
                     await self._mark_as_seen(uid)
-                    self._processed_uids.add(uid)
+                    processed += 1
                     continue
 
                 if email_data.message_id:
@@ -411,11 +523,24 @@ class IMAPPoller:
                         email_data.message_id, "pending"
                     )
 
-                thread_type, ticket_id = resolve_thread(email_data)
+                logger.info("Resolving thread for UID %s", uid)
+                try:
+                    thread_type, ticket_id = await asyncio.wait_for(
+                        asyncio.get_event_loop().run_in_executor(None, resolve_thread, email_data),
+                        timeout=10.0,
+                    )
+                except asyncio.TimeoutError:
+                    logger.error("Thread resolution timed out for UID %s", uid)
+                    await self._mark_as_seen(uid)
+                    continue
+
+                logger.info("Thread resolved for UID %s: type=%s, ticket=%s", uid, thread_type, ticket_id)
 
                 if thread_type == "new":
+                    logger.info("Processing as new email UID %s", uid)
                     await self._process_new_email(email_data)
                 elif thread_type == "reply" and ticket_id:
+                    logger.info("Processing as reply UID %s -> %s", uid, ticket_id)
                     await self._process_reply_email(email_data, ticket_id)
                 else:
                     logger.warning(
@@ -424,18 +549,29 @@ class IMAPPoller:
                         ticket_id,
                     )
 
+                logger.info("Marking UID %s as seen after successful processing", uid)
                 await self._mark_as_seen(uid)
-                self._processed_uids.add(uid)
                 processed += 1
+                logger.info("Finished processing UID %s", uid)
 
             except Exception as e:
                 logger.error(
                     "Error processing email UID %s: %s", uid, e, exc_info=True
                 )
-                try:
-                    await self._mark_as_seen(uid)
-                except Exception:
-                    pass
+                import traceback
+                logger.error("Full traceback:\n%s", traceback.format_exc())
+
+                # Only mark as seen if this is a permanent error (bad email format)
+                # Leave transient errors (backend down, network issues) unread for retry
+                error_msg = str(e).lower()
+                if "connection" not in error_msg and "timeout" not in error_msg and "unreachable" not in error_msg:
+                    logger.warning("Marking UID %s as seen due to permanent error", uid)
+                    try:
+                        await self._mark_as_seen(uid)
+                    except Exception:
+                        pass
+                else:
+                    logger.info("Leaving UID %s unread for retry (transient error)", uid)
 
         return processed
 

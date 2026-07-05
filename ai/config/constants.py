@@ -53,6 +53,8 @@ class TicketStatus(str, Enum):
     OPEN = "open"
     ASSIGNED = "assigned"
     IN_PROGRESS = "in_progress"
+    WAITING_APPROVAL = "waiting_approval"
+    WAITING_USER = "waiting_user"
     ESCALATED = "escalated"
     RESOLVED = "resolved"
     CLOSED = "closed"
@@ -78,6 +80,10 @@ class TimelineEventType(str, Enum):
     EMAIL_REPLY = "email_reply"
     PORTAL_REPLY = "portal_reply"
     AI_SUMMARY_EDITED = "ai_summary_edited"
+    AI_CLASSIFICATION = "ai_classification"
+    APPROVAL_REQUESTED = "approval_requested"
+    APPROVAL_RESOLVED = "approval_resolved"
+    FIELD_UPDATE = "field_update"
 
 
 ALLOWED_CATEGORIES = tuple(item.value for item in TicketCategory)
@@ -87,6 +93,24 @@ ALLOWED_TICKET_PREFILL_CATEGORIES = tuple(
 ALLOWED_PRIORITIES = tuple(item.value for item in TicketPriority)
 ALLOWED_RISKS = tuple(item.value for item in RiskLevel)
 ALLOWED_TEAMS = tuple(item.value for item in SupportTeam)
+
+CLASSIFIER_CATEGORY_TO_TICKET_CATEGORY: dict[str, str] = {
+    "general_it": "other",
+    "cybersecurity": "security",
+    "identity_access": "access_and_identity",
+    "cloud": "software",
+    "devops": "software",
+    "internship_hr": "other",
+}
+
+CLASSIFIER_TEAM_TO_SUPPORT_TEAM: dict[str, str] = {
+    "it": "service_desk",
+    "security": "security_operations",
+    "devops": "application_support",
+    "hr": "service_desk",
+    "management": "service_desk",
+}
+
 
 RISK_KEYWORDS = frozenset(
     {

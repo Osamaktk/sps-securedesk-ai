@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ai.chat.escalation import (
     EscalationDecision,
+    _category_tree_response,
     assess_escalation,
     guardrail_escalation,
     no_answer_escalation,
@@ -56,6 +57,8 @@ def _unique_sources(results: list[RetrievalResult]) -> list[str]:
 async def _try_create_escalation_ticket(
     request: ChatRequest,
     decision: EscalationDecision,
+    *,
+    session: ChatSession | None = None,
 ) -> ChatResponse:
     if not request.requester_email:
         logger.info(
@@ -81,6 +84,8 @@ async def _try_create_escalation_ticket(
         )
         ticket_number = data.get("ticket_number")
         ticket_id = data.get("id")
+        if session is not None:
+            session.set_ticket(ticket_id, ticket_number)
         logger.info(
             "Auto-created escalation ticket %s (id=%s) for session %s",
             ticket_number,
@@ -221,19 +226,25 @@ class ChatAssistant:
         with session.lock:
             session.add_message("user", request.message)
 
+            # 1. Show category tree for greetings / small talk
+            category_response = _category_tree_response(request.message)
+            if category_response is not None:
+                session.add_message("assistant", category_response.response)
+                return category_response
+
             escalation = assess_escalation(
                 request.message,
                 repeated_count=session.repeated_question_count(request.message),
             )
             if escalation.required:
-                response = await _try_create_escalation_ticket(request, escalation)
+                response = await _try_create_escalation_ticket(request, escalation, session=session)
                 session.add_message("assistant", response.response)
                 return response
 
             results = self._retriever(request.message, None)
             if not results:
                 no_answer = no_answer_escalation(request.message)
-                response = await _try_create_escalation_ticket(request, no_answer)
+                response = await _try_create_escalation_ticket(request, no_answer, session=session)
                 session.add_message("assistant", response.response)
                 return response
 
@@ -247,7 +258,7 @@ class ChatAssistant:
                 grounded_response = _validate_and_cite_response(generated.text, sources)
             except ResponseGuardrailError:
                 guardrail = guardrail_escalation(request.message)
-                response = await _try_create_escalation_ticket(request, guardrail)
+                response = await _try_create_escalation_ticket(request, guardrail, session=session)
                 session.add_message("assistant", response.response)
                 return response
 

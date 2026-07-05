@@ -18,13 +18,18 @@ from models.timeline_event import TimelineEvent, TimelineEventType
 from models.user import ROLE_LEVELS, User, UserRole
 from schemas.ticket import ApprovalRequest, TicketCreate, TicketUpdate, TimelineEventCreate
 from services.audit_service import write_audit_log
-from services.notification_service import create_notifications_for_new_ticket
+from services.duplicate_checker import check_for_duplicate
+from services.notification_service import create_notifications_for_new_ticket, create_notification_for_reply
 from services.sla_service import compute_sla_due_at
 
 
+<<<<<<< HEAD
+LOCKED_STATUSES = {TicketStatus.CLOSED, TicketStatus.DUPLICATE, TicketStatus.RESOLVED}
+=======
 logger = logging.getLogger(__name__)
 
 AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://ai_service:8001")
+>>>>>>> 62b75b58065f4026f863e06d9693a1f862477c41
 
 SELF_SERVICE_ROLES = {UserRole.INTERN, UserRole.EMPLOYEE}
 STAFF_ROLES = {UserRole.AGENT, UserRole.SECURITY_ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATOR}
@@ -160,6 +165,38 @@ async def create_ticket(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Self-service users can only create tickets for their own email address",
+        )
+
+    # Check for duplicate tickets before creating
+    duplicate = await check_for_duplicate(
+        db,
+        requester_email=payload.requester_email,
+        subject=payload.subject,
+        description=payload.description or "",
+    )
+    if duplicate is not None:
+        # Log the duplicate attempt on the existing ticket
+        db.add(
+            TimelineEvent(
+                ticket_id=duplicate.id,
+                event_type=TimelineEventType.DUPLICATE_ATTEMPT,
+                actor_id=actor.id if actor else None,
+                actor_email=actor.email if actor else payload.requester_email,
+                content=f"Duplicate submission received via {payload.source.value} from {payload.requester_email}",
+                is_public=False,
+                channel="system",
+            )
+        )
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "duplicate_ticket",
+                "message": f"A similar ticket already exists: {duplicate.ticket_number}",
+                "existing_ticket_id": str(duplicate.id),
+                "existing_ticket_number": duplicate.ticket_number,
+                "existing_ticket_status": duplicate.status.value,
+            },
         )
 
     created_at = utc_now()
@@ -342,6 +379,7 @@ async def list_tickets(
     team: TicketTeam | None = None,
     source: Any | None = None,
     assigned_to_me: bool = False,
+    requester_email: str | None = None,
 ) -> list[Ticket]:
     statement = select(Ticket)
 
@@ -358,6 +396,8 @@ async def list_tickets(
         statement = statement.where(Ticket.team == team)
     if source:
         statement = statement.where(Ticket.source == source)
+    if requester_email:
+        statement = statement.where(Ticket.requester_email == requester_email)
 
     statement = statement.order_by(Ticket.created_at.desc())
     result = await db.execute(statement)
@@ -375,6 +415,18 @@ async def update_ticket(
     ticket = await get_ticket_by_id(db, ticket_id)
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+
+    # Locked tickets cannot be updated
+    if ticket.status in LOCKED_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "ticket_locked",
+                "message": f"Ticket {ticket.ticket_number} is {ticket.status.value} and cannot be updated.",
+                "ticket_number": ticket.ticket_number,
+                "status": ticket.status.value,
+            },
+        )
 
     # High-risk tickets require explicit approval via /approve before any status changes.
     if ticket.status == TicketStatus.WAITING_APPROVAL and actor.role not in {
@@ -450,6 +502,18 @@ async def add_timeline_event(
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
 
+    # Locked tickets cannot have events added
+    if ticket.status in LOCKED_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "ticket_locked",
+                "message": f"Ticket {ticket.ticket_number} is {ticket.status.value} and cannot be updated.",
+                "ticket_number": ticket.ticket_number,
+                "status": ticket.status.value,
+            },
+        )
+
     if actor and not user_can_view_ticket(actor, ticket):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
     if not actor and payload.channel not in {"email", "chat", "system"}:
@@ -464,6 +528,13 @@ async def add_timeline_event(
         channel=payload.channel,
     )
     db.add(event)
+
+    # Create notifications for replies (public replies and internal notes)
+    if payload.event_type in [TimelineEventType.AGENT_REPLY_PORTAL, TimelineEventType.AGENT_REPLY_EMAIL, TimelineEventType.INTERNAL_NOTE]:
+        await create_notification_for_reply(
+            db, ticket, actor, payload.event_type.value, payload.is_public
+        )
+
     await write_audit_log(
         db,
         ticket_id=ticket_id,
@@ -502,6 +573,18 @@ async def resolve_approval(
             detail="Only security_admin or manager can approve/reject tickets",
         )
 
+    # Locked tickets cannot be approved/rejected
+    if ticket.status in LOCKED_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "ticket_locked",
+                "message": f"Ticket {ticket.ticket_number} is {ticket.status.value} and cannot be updated.",
+                "ticket_number": ticket.ticket_number,
+                "status": ticket.status.value,
+            },
+        )
+
     # Approval decisions are terminal for rejects and move approved tickets into the agent queue.
     ticket.status = TicketStatus.IN_PROGRESS if payload.decision == "approved" else TicketStatus.CLOSED
     ticket.updated_at = utc_now()
@@ -533,6 +616,65 @@ async def resolve_approval(
     return updated_ticket
 
 
+<<<<<<< HEAD
+async def escalate_ticket(
+    db: AsyncSession,
+    ticket_id: uuid.UUID,
+    team: TicketTeam,
+    note: str,
+    actor: User,
+    *,
+    ip_address: str | None = None,
+) -> Ticket:
+    ticket = await get_ticket_by_id(db, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+
+    # Locked tickets cannot be escalated
+    if ticket.status in LOCKED_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "ticket_locked",
+                "message": f"Ticket {ticket.ticket_number} is {ticket.status.value} and cannot be updated.",
+                "ticket_number": ticket.ticket_number,
+                "status": ticket.status.value,
+            },
+        )
+
+    ticket.team = team
+    ticket.status = TicketStatus.WAITING_APPROVAL
+    ticket.updated_at = utc_now()
+
+    details = {"escalated_to": team.value, "escalation_note": note}
+    db.add(
+        TimelineEvent(
+            ticket_id=ticket.id,
+            event_type=TimelineEventType.ESCALATED,
+            actor_id=actor.id,
+            actor_email=actor.email,
+            content=json.dumps(details),
+            is_public=False,
+            channel="system",
+        )
+    )
+
+    await write_audit_log(
+        db,
+        ticket_id=ticket.id,
+        actor_id=actor.id,
+        action=f"ticket.escalated.{team.value}",
+        channel="system",
+        details=details,
+        ip_address=ip_address,
+    )
+
+    await db.commit()
+    updated_ticket = await get_ticket_by_id(db, ticket.id)
+    if not updated_ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    return updated_ticket
+=======
 async def get_ticket_by_number_and_email(db: AsyncSession, ticket_number: str, email: str) -> Ticket | None:
     """
     Retrieve a ticket by ticket_number and verify email matches requester_email.
@@ -559,3 +701,4 @@ async def get_ticket_by_number_and_email(db: AsyncSession, ticket_number: str, e
         return None
     
     return ticket
+>>>>>>> 62b75b58065f4026f863e06d9693a1f862477c41

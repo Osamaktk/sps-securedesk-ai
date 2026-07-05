@@ -37,11 +37,6 @@ export default function AdminDashboard() {
           </Link>
         ))}
       </div>
-
-      <div className="future-integration-note">
-        <span aria-hidden="true">API</span>
-        <div><strong>Admin API integration pending</strong><p>Administration changes are disabled until secured backend admin APIs are added.</p></div>
-      </div>
     </section>
   );
 }

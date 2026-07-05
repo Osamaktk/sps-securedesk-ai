@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import ChatLauncher from '../chat/ChatLauncher';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 
@@ -59,8 +58,6 @@ export default function AppShell() {
           <Outlet />
         </main>
       </div>
-
-      <ChatLauncher />
     </div>
   );
 }

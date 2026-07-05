@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import authService from '../../services/authService.js';
-import { createTicketFromEscalation, getInitialMessages, sendMessage } from '../../services/chatService.js';
+import { createTicketFromEscalation, getCategories, getInitialMessages, sendMessage } from '../../services/chatService.js';
 import ChatHeader from './ChatHeader';
 import ChatInput from './ChatInput';
 import ChatMessage from './ChatMessage';
-import ChatSuggestions from './ChatSuggestions';
+import CategoryBrowser from './CategoryBrowser';
 import CreateTicketFromChat from './CreateTicketFromChat';
 
 function createUserMessage(content) {
@@ -55,6 +55,8 @@ export default function ChatWindow({ onClose }) {
   const [isLoading, setIsLoading] = useState(true);
   const [showTicketCard, setShowTicketCard] = useState(false);
   const [ticketDraft, setTicketDraft] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [expandedCategory, setExpandedCategory] = useState(null);
   const messageAreaRef = useRef(null);
   const sessionId = useMemo(() => `widget-${crypto.randomUUID?.() || Date.now()}`, []);
   const currentUser = authService.getCurrentUser();
@@ -66,6 +68,12 @@ export default function ChatWindow({ onClose }) {
       if (!isMounted) return;
       setMessages(initialMessages.slice(0, 1));
       setIsLoading(false);
+    });
+
+    getCategories().then((data) => {
+      if (isMounted) setCategories(data || []);
+    }).catch(() => {
+      if (isMounted) setCategories([]);
     });
 
     return () => {
@@ -81,20 +89,37 @@ export default function ChatWindow({ onClose }) {
   const handleSend = async (content) => {
     if (content.toLowerCase() === 'create ticket') {
       setShowTicketCard(true);
+      setExpandedCategory(null);
       return;
     }
 
+    setExpandedCategory(null);
     setMessages((current) => [...current, createUserMessage(content)]);
     setIsLoading(true);
 
     try {
-      const response = await sendMessage(sessionId, content, currentUser?.id);
+      const response = await sendMessage(sessionId, content, currentUser?.id, currentUser?.email);
       setMessages((current) => [...current, createAssistantMessage(response)]);
       setTicketDraft(normalizeTicketDraft(response.ticket_prefill, content));
+      if (response.suggested_categories && response.suggested_categories.length) {
+        setCategories(response.suggested_categories);
+      }
       if (response.escalate) setShowTicketCard(true);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCategoryClick = (category) => {
+    if (category.subcategories && category.subcategories.length) {
+      setExpandedCategory(expandedCategory === category.id ? null : category.id);
+    } else {
+      handleSend(category.label);
+    }
+  };
+
+  const handleSubcategoryClick = (subcategory) => {
+    handleSend(subcategory.label);
   };
 
   const handleCreateTicket = (draft) =>
@@ -102,7 +127,7 @@ export default function ChatWindow({ onClose }) {
       ...draft,
       description: draft.summary,
       aiSummary: draft.summary,
-      requesterEmail: currentUser?.email || 'requester@example.com',
+      requesterEmail: currentUser?.email || undefined,
     });
 
   return (
@@ -134,7 +159,7 @@ export default function ChatWindow({ onClose }) {
       </div>
 
       <div className="chat-window__composer">
-        <ChatSuggestions disabled={isLoading} onSelect={handleSend} />
+        <CategoryBrowser categories={categories} expanded={expandedCategory} onCategoryClick={handleCategoryClick} onSubcategoryClick={handleSubcategoryClick} disabled={isLoading} />
         <ChatInput disabled={isLoading} onSend={handleSend} />
         <p className="chat-safety-footer">
           AI can suggest answers, but sensitive actions require human approval.

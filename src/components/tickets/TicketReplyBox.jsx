@@ -22,6 +22,8 @@ export default function TicketReplyBox({
   const [status, setStatus] = useState(currentStatus);
   const [isSaving, setIsSaving] = useState(false);
 
+  const isClosed = currentStatus === 'closed' || currentStatus === 'resolved';
+
   useEffect(() => {
     setStatus(currentStatus);
   }, [currentStatus]);
@@ -75,11 +77,14 @@ export default function TicketReplyBox({
         value={message}
         aria-label={mode === 'public' ? 'Public reply message' : 'Internal note message'}
         placeholder={
-          mode === 'public'
-            ? 'Write an email reply to the requester...'
-            : 'Add a private note for service desk teams...'
+          isClosed
+            ? 'This ticket is closed. No further replies are allowed.'
+            : mode === 'public'
+              ? 'Write an email reply to the requester...'
+              : 'Add a private note for service desk teams...'
         }
         onChange={(event) => setMessage(event.target.value)}
+        disabled={isClosed}
       />
 
       <div className="ticket-reply-box__footer">
@@ -94,16 +99,16 @@ export default function TicketReplyBox({
               ))}
             </select>
           </label>
-          <Button variant="outline" disabled={isSaving} onClick={updateStatus}>
+          <Button variant="outline" disabled={isSaving || isClosed} onClick={updateStatus}>
             Update status
           </Button>
         </div>
         <div className="ticket-reply-box__actions">
-          <Button variant="success" disabled={isSaving} onClick={resolveTicket}>
+          <Button variant="success" disabled={isSaving || isClosed} onClick={resolveTicket}>
             Resolve ticket
           </Button>
-          <Button disabled={isSaving || !message.trim()} onClick={submitMessage}>
-            {mode === 'public' ? 'Send email reply' : 'Add internal note'}
+          <Button disabled={isSaving || isClosed || !message.trim()} onClick={submitMessage}>
+            {isClosed ? 'Ticket closed' : mode === 'public' ? 'Send email reply' : 'Add internal note'}
           </Button>
         </div>
       </div>

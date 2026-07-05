@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Button from '../common/Button';
 import CategorySelect from './CategorySelect';
 import FileUpload from './FileUpload';
+import { enhanceDescription } from '../../services/aiService';
 
 const priorityOptions = [
   ['low', 'Low'],
@@ -22,20 +23,39 @@ export default function RequestForm({ onSubmit }) {
   const [form, setForm] = useState(initialForm);
   const [attachments, setAttachments] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [aiEnhancedDescription, setAiEnhancedDescription] = useState(null);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [enhanceError, setEnhanceError] = useState('');
 
   const updateField = (event) => {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
   };
 
+  const handleEnhanceDescription = async () => {
+    if (!form.subject.trim() || !form.description.trim()) return;
+    setIsEnhancing(true);
+    setEnhanceError('');
+    try {
+      const response = await enhanceDescription(form.subject.trim(), form.description.trim());
+      setAiEnhancedDescription(response.summary || response.enhanced_description || response.description);
+    } catch {
+      setEnhanceError('Could not enhance description with AI. You can still submit your original description.');
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
   const submitForm = async (event) => {
     event.preventDefault();
     setIsSubmitting(true);
     try {
+      const finalDescription = (aiEnhancedDescription || form.description).trim();
       await onSubmit({
-      ...form,
-      aiSummary: form.description,
-      attachments,
+        ...form,
+        description: finalDescription,
+        aiSummary: finalDescription,
+        attachments,
       });
     } finally {
       setIsSubmitting(false);
@@ -99,6 +119,38 @@ export default function RequestForm({ onSubmit }) {
               setAttachments((current) => [...current, attachment])
             }
           />
+        </div>
+
+        <div className="request-field request-field--full request-form__ai-enhance" style={{ marginTop: '10px' }}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleEnhanceDescription}
+            disabled={isEnhancing || !form.subject.trim() || !form.description.trim()}
+          >
+            {isEnhancing ? 'Enhancing...' : 'Enhance Description with AI'}
+          </Button>
+          {enhanceError && <p className="form-error" style={{ marginTop: '8px', color: 'red' }}>{enhanceError}</p>}
+          {aiEnhancedDescription && (
+            <div className="ai-enhanced-preview" style={{ marginTop: '12px' }}>
+              <span style={{ fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>AI Enhanced Description Preview:</span>
+              <textarea
+                className="chat-ticket-card__textarea"
+                value={aiEnhancedDescription}
+                readOnly
+                rows={5}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd', backgroundColor: '#f9f9f9', fontFamily: 'inherit' }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAiEnhancedDescription(null)}
+                style={{ marginTop: '8px' }}
+              >
+                Clear AI Enhancement
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 

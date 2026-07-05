@@ -31,9 +31,33 @@ class LoginRequest(BaseModel):
         return value.strip().lower()
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return value.strip().lower()
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, value: str) -> str:
+        if not any(c.isdigit() for c in value):
+            raise ValueError("Password must contain at least one number")
+        if not any(c in "!@#$%^&*()_+-=[]{}|;':\",./<>?" for c in value):
+            raise ValueError("Password must contain at least one special character")
+        return value
+
+
 class TokenUser(BaseModel):
     id: uuid.UUID
     email: EmailStr
+    full_name: str
     role: UserRole
 
 

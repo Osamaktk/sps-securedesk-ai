@@ -136,9 +136,62 @@ def parse_email(raw_email: bytes) -> Optional[ParsedEmail]:
     to_address = _decode_mime_header(to_raw).strip() if to_raw else None
     subject = _decode_mime_header(msg.get("Subject", "")).strip()
 
+    # If From is missing, try alternative headers
     if not from_address:
-        logger.warning("Email is missing 'From' header, skipping")
-        return None
+        logger.warning("Email missing 'From' header, trying alternatives")
+
+        # Debug: Log all available headers to diagnose the issue
+        logger.debug("Available headers: %s", ", ".join(msg.keys()))
+
+        # Try Return-Path (envelope sender, most reliable)
+        return_path = msg.get("Return-Path", "")
+        if return_path:
+            from_address = _decode_mime_header(return_path).strip()
+            # Clean up angle brackets if present
+            from_address = from_address.strip("<>")
+            if from_address and from_address != "MAILER-DAEMON":
+                logger.info("Using Return-Path as sender: %s", from_address)
+
+        # Try Reply-To (where replies should go)
+        if not from_address:
+            reply_to = msg.get("Reply-To", "")
+            if reply_to:
+                from_address = _decode_mime_header(reply_to).strip()
+                logger.info("Using Reply-To as sender: %s", from_address)
+
+        # Try Sender (actual sender if different from From)
+        if not from_address:
+            sender = msg.get("Sender", "")
+            if sender:
+                from_address = _decode_mime_header(sender).strip()
+                logger.info("Using Sender as sender: %s", from_address)
+
+        # Try X-Original-From (some email systems use this)
+        if not from_address:
+            x_original = msg.get("X-Original-From", "")
+            if x_original:
+                from_address = _decode_mime_header(x_original).strip()
+                logger.info("Using X-Original-From as sender: %s", from_address)
+
+        # Last resort: Extract from Received headers (trace the email path)
+        if not from_address:
+            received_headers = msg.get_all("Received", [])
+            if received_headers:
+                # Parse the first Received header for sender email
+                first_received = received_headers[-1]  # Last Received = first in chain
+                # Look for email pattern in the Received header
+                email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', first_received)
+                if email_match:
+                    from_address = email_match.group(0)
+                    logger.info("Extracted sender from Received header: %s", from_address)
+
+        # Final check
+        if not from_address:
+            logger.error("Email has no sender information after trying all alternatives")
+            logger.error("Subject: %s, Message-ID: %s", subject, message_id)
+            header_str = str(dict(msg.items()))[:500]  # First 500 chars
+            logger.error("Headers: %s", header_str)
+            return None
 
     plain_text, html_text, attachments = _get_body_from_message(msg)
 

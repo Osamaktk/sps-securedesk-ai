@@ -21,7 +21,10 @@ def utc_now() -> datetime:
 class TicketSource(str, Enum):
     EMAIL = "email"
     PORTAL_FORM = "portal_form"
+    FORM = "form"
     CHAT = "chat"
+    AI_CHAT = "ai_chat"
+    DASHBOARD = "dashboard"
 
 
 class TicketCategory(str, Enum):
@@ -56,9 +59,11 @@ class TicketTeam(str, Enum):
 class TicketStatus(str, Enum):
     OPEN = "open"
     IN_PROGRESS = "in_progress"
+    ESCALATED = "escalated"
     WAITING_APPROVAL = "waiting_approval"
     WAITING_USER = "waiting_user"
     RESOLVED = "resolved"
+    DUPLICATE = "duplicate"
     CLOSED = "closed"
 
 

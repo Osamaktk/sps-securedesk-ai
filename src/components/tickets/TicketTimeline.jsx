@@ -3,6 +3,7 @@ const eventCodes = {
   'Form submitted': 'FM',
   'Chat escalation note': 'AI',
   'AI classification suggested': 'AI',
+  'AI classification': 'AS',
   'Agent assigned': 'AG',
   'Internal note added': 'IN',
   'Internal note': 'IN',
@@ -11,10 +12,15 @@ const eventCodes = {
   'Status changed': 'ST',
   'Email reply sent': 'ER',
   'Ticket Created': 'TC',
+  'Ticket created': 'TC',
   'Agent Reply Portal': 'RP',
   'Internal Note': 'IN',
   'Status Change': 'ST',
   'Email Received': 'EM',
+  'AI summary edited': 'AS',
+  'Approval requested': 'AP',
+  'Approval resolved': 'AP',
+  'Field update': 'FU',
 };
 
 function formatEventDate(value) {

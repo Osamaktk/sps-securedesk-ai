@@ -10,6 +10,8 @@ from models.notification import Notification
 from models.ticket import Ticket
 from models.user import User, UserRole
 
+STAFF_ROLES = {UserRole.AGENT, UserRole.SECURITY_ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATOR}
+
 logger = logging.getLogger("sps.notification_service")
 
 
@@ -108,3 +110,87 @@ async def mark_all_as_read(
         .values(is_read=True)
     )
     await db.commit()
+
+
+async def create_notification_for_reply(
+    db: AsyncSession,
+    ticket: Ticket,
+    reply_actor: User | None,
+    event_type: str,
+    is_public: bool,
+) -> list[Notification]:
+    """
+    Create notifications when a reply is added to a ticket.
+    
+    - For public replies: notify the ticket requester (if not the actor)
+    - For internal notes: notify all staff users except the actor
+    - For agent replies: notify the requester
+    - For requester replies: notify all assigned/participating staff
+    """
+    # Skip notifications if actor is None (e.g., email_worker events)
+    if reply_actor is None:
+        return []
+    
+    notifications = []
+    
+    # Determine who should be notified
+    recipients = set()
+    
+    if is_public:
+        # Public replies notify the other party
+        if reply_actor.role in STAFF_ROLES:
+            # Agent/admin replied - notify requester
+            if ticket.requester_id and ticket.requester_id != reply_actor.id:
+                recipients.add(ticket.requester_id)
+        else:
+            # Requester replied - notify all staff
+            # Find assigned agent if any
+            if ticket.assigned_agent_id and ticket.assigned_agent_id != reply_actor.id:
+                recipients.add(ticket.assigned_agent_id)
+            # Notify all staff users
+            result = await db.execute(
+                select(User).where(
+                    User.role.in_(STAFF_ROLES),
+                    User.is_active == True,  # noqa: E712
+                    User.id != reply_actor.id,
+                )
+            )
+            for staff_user in result.scalars().all():
+                recipients.add(staff_user.id)
+    else:
+        # Internal notes notify all staff except the actor
+        result = await db.execute(
+            select(User).where(
+                User.role.in_(STAFF_ROLES),
+                User.is_active == True,  # noqa: E712
+                User.id != reply_actor.id,
+            )
+        )
+        for staff_user in result.scalars().all():
+            recipients.add(staff_user.id)
+    
+    # Create notifications
+    for recipient_id in recipients:
+        actor_name = reply_actor.full_name or reply_actor.email
+        if is_public:
+            title = f"New reply on {ticket.ticket_number}"
+            message = f"{actor_name} replied to ticket: {ticket.subject}"
+        else:
+            title = f"New internal note on {ticket.ticket_number}"
+            message = f"{actor_name} added an internal note to: {ticket.subject}"
+        
+        notification = Notification(
+            recipient_id=recipient_id,
+            ticket_id=ticket.id,
+            notification_type="ticket_reply",
+            title=title,
+            message=message,
+        )
+        db.add(notification)
+        notifications.append(notification)
+    
+    if notifications:
+        await db.flush()
+        logger.info(f"Created {len(notifications)} reply notifications for ticket {ticket.ticket_number}")
+    
+    return notifications

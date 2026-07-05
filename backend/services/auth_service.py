@@ -52,3 +52,19 @@ def decode_access_token(token: str) -> dict[str, Any]:
         return jwt.decode(token, _secret_key(), algorithms=[_algorithm()])
     except JWTError as exc:
         raise ValueError("Invalid access token") from exc
+
+
+def create_password_reset_token(email: str) -> str:
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+    payload = {"sub": email, "purpose": "password_reset", "exp": expires_at}
+    return jwt.encode(payload, _secret_key(), algorithm=_algorithm())
+
+
+def decode_password_reset_token(token: str) -> str:
+    try:
+        payload = jwt.decode(token, _secret_key(), algorithms=[_algorithm()])
+        if payload.get("purpose") != "password_reset":
+            raise ValueError("Invalid token purpose")
+        return payload["sub"]
+    except JWTError as exc:
+        raise ValueError("Invalid or expired reset token") from exc

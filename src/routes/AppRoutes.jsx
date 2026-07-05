@@ -3,6 +3,8 @@ import AppShell from '../components/common/AppShell';
 
 import Login from '../pages/auth/Login';
 import Register from '../pages/auth/Register';
+import ForgotPassword from '../pages/auth/ForgotPassword';
+import ResetPassword from '../pages/auth/ResetPassword';
 import { NotificationProvider } from '../context/NotificationContext';
 import RequesterDashboard from '../pages/requester/RequesterDashboard';
 import SubmitRequest from '../pages/requester/SubmitRequest';
@@ -61,6 +63,8 @@ export default function AppRoutes() {
       <Route path="/app" element={<RoleRedirect />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       <Route element={
         <NotificationProvider>

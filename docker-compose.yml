@@ -28,8 +28,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: backend/Dockerfile   # Changed
-    # ... rest remains same
+      dockerfile: backend/Dockerfile
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - DATABASE_URL_SYNC=${DATABASE_URL_SYNC}
@@ -59,6 +58,10 @@ services:
     build:
       context: ./email_worker
       dockerfile: Dockerfile
+    env_file:
+      - .env
+    profiles:
+      - email
     environment:
       - IMAP_HOST=${IMAP_HOST:-}
       - IMAP_PORT=${IMAP_PORT:-993}
@@ -74,19 +77,20 @@ services:
       - EMAIL_TEST_REDIRECT_BASE=${EMAIL_TEST_REDIRECT_BASE:-}
       - BACKEND_API_URL=${BACKEND_API_URL:-http://backend:8000}
       - AI_SERVICE_URL=${AI_SERVICE_URL:-http://ai_service:8001}
-      - INTERNAL_API_KEY=${INTERNAL_API_KEY:-dev-internal-api-key}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
       - PORTAL_URL=${PORTAL_URL:-http://localhost:5173}
       - MESSAGE_STORE_PATH=${MESSAGE_STORE_PATH:-/app/email_worker/data}
     volumes:
+      - ./email_worker:/app/email_worker
       - email_worker_data:/app/email_worker/data
     restart: unless-stopped
     depends_on:
       backend:
-        condition: service_healthy   # Changed from service_started
+        condition: service_healthy
       mailhog:
         condition: service_started
     networks:
-      - default   # Explicit network (helps with service name resolution)
+      - default
 
   ai_service:
     build: ./ai
@@ -94,6 +98,7 @@ services:
       - "8001:8001"
     environment:
       BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:8000}
+      LLM_PROVIDER: groq
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}

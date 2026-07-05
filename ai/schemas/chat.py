@@ -33,6 +33,7 @@ class ChatResponse(BaseModel):
     ticket_prefill: TicketPrefill | None = None
     ticket_number: Optional[str] = None
     ticket_id: Optional[str] = None
+    suggested_categories: list[dict] | None = Field(default=None)
 
 
 class ChatEscalationTicketPrefill(BaseModel):

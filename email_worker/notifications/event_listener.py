@@ -75,6 +75,9 @@ class EventListener:
         ticket_ref = data.get("ticket_number") or backend_event.ticket_id
 
         try:
+            # Use ticket_number (SPS-2026-116) for user-facing emails instead of UUID
+            ticket_ref = backend_event.ticket_number or backend_event.ticket_id
+
             if backend_event.event_type == "ticket_created":
                 if requester_email:
                     await self.email_sender.send_ack_email(
@@ -83,7 +86,13 @@ class EventListener:
                         subject=subject,
                         requester_name=requester_name,
                     )
+<<<<<<< HEAD
+                    logger.info(
+                        "ACK email sent for ticket %s", ticket_ref
+                    )
+=======
                     logger.info("ACK email sent for ticket %s", ticket_ref)
+>>>>>>> 62b75b58065f4026f863e06d9693a1f862477c41
 
             elif backend_event.event_type == "agent_reply":
                 agent_name = data.get("agent_name", "Support Agent")
@@ -114,7 +123,14 @@ class EventListener:
                             "Failed to log agent_reply_email event: %s", e
                         )
 
+<<<<<<< HEAD
+                    logger.info(
+                        "Agent reply email sent for ticket %s",
+                        ticket_ref,
+                    )
+=======
                     logger.info("Agent reply email sent for ticket %s", ticket_ref)
+>>>>>>> 62b75b58065f4026f863e06d9693a1f862477c41
 
             elif backend_event.event_type == "status_changed":
                 new_status = data.get("new_status", data.get("status", "Updated"))

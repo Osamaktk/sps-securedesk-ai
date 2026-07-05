@@ -19,8 +19,10 @@ EventType = Literal[
 class BackendEvent(BaseModel):
     """An event received from the backend email events feed."""
 
+    id: str = ""
     event_type: EventType
-    ticket_id: str
+    ticket_id: str  # UUID for internal use
+    ticket_number: str = ""  # Friendly number like SPS-2026-116 for user-facing emails
     data: Dict[str, Any] = {}
     occurred_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

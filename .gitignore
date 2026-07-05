@@ -4,6 +4,14 @@
 backend/.env
 backend/.env.*
 !backend/.env.example
+email_worker/.env
+email_worker/.env.*
+!email_worker/.env.example
+ai/.env
+ai/.env.*
+!ai/.env.example
+.claude/
+*.log
 __pycache__/
 *.py[cod]
 *.pyo

@@ -2,11 +2,18 @@
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from email_worker directory first (takes precedence)
+_email_worker_env = Path(__file__).parent.parent / ".env"
+if _email_worker_env.exists():
+    load_dotenv(_email_worker_env)
+else:
+    # Fallback to project root .env (for Docker)
+    load_dotenv()
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,113 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: securedesk
+      POSTGRES_PASSWORD: securedesk
+      POSTGRES_DB: securedesk
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U securedesk -d securedesk"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    environment:
+      - MH_API_BIND_ADDR=0.0.0.0:8025
+      - MH_SMTP_BIND_ADDR=0.0.0.0:1025
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL_SYNC=${DATABASE_URL_SYNC}
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=${ALGORITHM}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
+      - UPLOAD_DIR=${UPLOAD_DIR}
+      - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB}
+      - ENVIRONMENT=${ENVIRONMENT}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - SEED_DEFAULT_USERS=${SEED_DEFAULT_USERS}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  email_worker:
+    build:
+      context: ./email_worker
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    profiles:
+      - email
+    environment:
+      - IMAP_HOST=${IMAP_HOST:-}
+      - IMAP_PORT=${IMAP_PORT:-993}
+      - IMAP_USER=${IMAP_USER:-}
+      - IMAP_PASSWORD=${IMAP_PASSWORD:-}
+      - IMAP_POLL_INTERVAL_SECONDS=${IMAP_POLL_INTERVAL_SECONDS:-30}
+      - SMTP_HOST=${SMTP_HOST:-mailhog}
+      - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS:-helpdesk@sps.com}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME:-SPS Helpdesk}
+      - EMAIL_TEST_REDIRECT_BASE=${EMAIL_TEST_REDIRECT_BASE:-}
+      - BACKEND_API_URL=${BACKEND_API_URL:-http://backend:8000}
+      - AI_SERVICE_URL=${AI_SERVICE_URL:-http://ai_service:8001}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - PORTAL_URL=${PORTAL_URL:-http://localhost:5173}
+      - MESSAGE_STORE_PATH=${MESSAGE_STORE_PATH:-/app/email_worker/data}
+    volumes:
+      - ./email_worker:/app/email_worker
+      - email_worker_data:/app/email_worker/data
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    networks:
+      - default
+
+  ai_service:
+    build: ./ai
+    ports:
+      - "8001:8001"
+    environment:
+      BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:8000}
+      LLM_PROVIDER: groq
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      CORS_ORIGINS: ${AI_CORS_ORIGINS:-http://localhost:5173,http://localhost:5174,http://localhost:3000,http://localhost:5199,http://127.0.0.1:5199}
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  pgdata:
+  uploads:
+  email_worker_data:

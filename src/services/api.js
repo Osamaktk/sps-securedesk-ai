@@ -1,0 +1,29 @@
+import axios from 'axios';
+import { API_URL } from '../config/constants.js';
+
+const api = axios.create({
+  baseURL: API_URL,
+});
+
+api.interceptors.request.use((config) => {
+  const token = sessionStorage.getItem('token');
+  if (token) {
+    config.headers = config.headers ?? {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
+      window.dispatchEvent(new Event('auth-logout'));
+    }
+    return Promise.reject(err);
+  }
+);
+
+export default api;

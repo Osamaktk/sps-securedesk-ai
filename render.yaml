@@ -37,10 +37,10 @@ services:
   # AI Service
   - type: web
     name: sps-securedesk-ai
-    runtime: image
+    runtime: docker
     region: oregon
     plan: starter
-    dockerfilePath: ai/Dockerfile
+    dockerfilePath: ./ai/Dockerfile
     healthCheckPath: /health
     envVars:
       - key: LLM_PROVIDER

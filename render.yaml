@@ -37,10 +37,12 @@ services:
   # AI Service
   - type: web
     name: sps-securedesk-ai
-    runtime: docker
+    runtime: python
     region: oregon
     plan: starter
-    dockerfilePath: ./ai/Dockerfile
+    buildCommand: bash build.sh
+    workingDirectory: ai
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: LLM_PROVIDER

@@ -102,7 +102,19 @@ app.include_router(ai_resolve_router)
 
 @app.on_event("startup")
 async def on_startup() -> None:
-    Path(os.getenv("UPLOAD_DIR", "./uploads")).mkdir(parents=True, exist_ok=True)
+    upload_dir = os.getenv("UPLOAD_DIR")
+    if upload_dir:
+        try:
+            Path(upload_dir).mkdir(parents=True, exist_ok=True)
+            logger.info("Upload directory ready: %s", upload_dir)
+        except (OSError, PermissionError) as e:
+            logger.warning("Could not create UPLOAD_DIR=%s, falling back to ./uploads: %s", upload_dir, e)
+            upload_dir = "./uploads"
+            Path(upload_dir).mkdir(parents=True, exist_ok=True)
+    else:
+        upload_dir = "./uploads"
+        Path(upload_dir).mkdir(parents=True, exist_ok=True)
+    os.environ["UPLOAD_DIR"] = upload_dir
 
     if not _seed_default_users_enabled():
         logger.info("Default test user seeding disabled; set SEED_DEFAULT_USERS=true to enable it")

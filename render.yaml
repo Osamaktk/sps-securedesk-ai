@@ -9,6 +9,7 @@ services:
     region: oregon
     plan: starter
     buildCommand: pip install -r backend/requirements.txt
+    workingDirectory: backend
     startCommand: alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
@@ -40,7 +41,8 @@ services:
     region: oregon
     plan: starter
     buildCommand: pip install -r ai/requirements.txt
-    startCommand: uvicorn ai.main:app --host 0.0.0.0 --port $PORT
+    workingDirectory: ai
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: LLM_PROVIDER

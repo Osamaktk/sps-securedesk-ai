@@ -33,6 +33,7 @@ services:
         value: 10
       - key: UPLOAD_DIR
         value: /tmp/uploads
+        sync: false
 
   # AI Service
   - type: web

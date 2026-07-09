@@ -233,7 +233,12 @@ export async function escalateTicket(id, data) {
 
 export async function createTicket(data) {
   const response = await api.post('/tickets', toTicketCreatePayload(data));
-  return normalizeTicket(response.data);
+  const ticket = response.data;
+  // Ensure we have the UUID string for subsequent operations
+  if (ticket && !ticket.id && ticket.uuid) {
+    ticket.id = ticket.uuid;
+  }
+  return normalizeTicket(ticket);
 }
 
 export async function updateTicket(id, data) {

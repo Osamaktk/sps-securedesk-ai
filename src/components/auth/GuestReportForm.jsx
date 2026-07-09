@@ -140,6 +140,8 @@ export default function GuestReportForm() {
             await ticketService.uploadFile(ticket.id, f, requesterEmail);
           } catch (uploadErr) {
             console.warn('Attachment upload failed', uploadErr);
+            setError(`Attachment upload failed: ${uploadErr?.response?.data?.detail || uploadErr?.message || 'Unknown error'}`);
+            // Continue with submission - don't block the ticket
           }
         }
       }

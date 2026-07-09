@@ -87,7 +87,7 @@ services:
       - key: SMTP_PASSWORD
         sync: false
       - key: EMAIL_FROM_ADDRESS
-        sync: false
+        value: faizyaburrahman.king.gadoon@gmail.com
       - key: EMAIL_FROM_NAME
         value: SPS Helpdesk
       - key: BACKEND_API_URL

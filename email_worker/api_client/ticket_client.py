@@ -197,6 +197,28 @@ class TicketClient:
         return response.json()
 
     @async_retry(max_attempts=2, base_delay=0.5)
+    async def upload_attachment(
+        self, ticket_id: str, attachment: Any
+    ) -> Dict[str, Any]:
+        """Upload an email attachment to a ticket via internal endpoint."""
+        client = await self._get_backend_client()
+        content = attachment.content
+        filename = attachment.filename
+        content_type = attachment.content_type or "application/octet-stream"
+        files = {"file": (filename, content, content_type)}
+        headers = {}
+        if settings.internal_api_key:
+            headers["X-Internal-Api-Key"] = settings.internal_api_key
+        logger.info("Uploading attachment %s (%d bytes) to ticket %s", filename, len(content) if content else 0, ticket_id)
+        response = await client.post(
+            f"/tickets/{ticket_id}/attachments/internal",
+            files=files,
+            headers=headers,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    @async_retry(max_attempts=2, base_delay=0.5)
     async def resolve_ticket_with_ai(
         self, ticket_id: str, answer: str, sources: list[str]
     ) -> Dict[str, Any]:

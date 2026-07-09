@@ -315,6 +315,19 @@ class IMAPPoller:
             email_data.from_address,
         )
 
+        # Upload email attachments as actual files
+        if email_data.attachments and ticket_uuid:
+            try:
+                for att in email_data.attachments:
+                    if att.content:
+                        await self.ticket_client.upload_attachment(ticket_uuid, att)
+            except Exception as attach_err:
+                logger.warning(
+                    "Failed to upload some email attachments: %s",
+                    attach_err,
+                    exc_info=True,
+                )
+
         if email_data.message_id:
             message_store.save_message_mapping(
                 email_data.message_id, ticket_number

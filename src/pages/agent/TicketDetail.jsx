@@ -293,11 +293,13 @@ export default function TicketDetail() {
             {ticket.attachments.length ? (
               <div className="ticket-attachments">
                 {ticket.attachments.map((attachment) => (
-                  <a
-                    href={attachment.url}
-                    key={attachment.id}
-                    aria-label={`Open attachment ${attachment.name}`}
-                  >
+                   <a
+                     href={attachment.url}
+                     key={attachment.id}
+                     aria-label={`Open attachment ${attachment.name}`}
+                     target="_blank"
+                     rel="noopener noreferrer"
+                   >
                     <span aria-hidden="true">AT</span>
                     <span>
                       <strong>{attachment.name}</strong>

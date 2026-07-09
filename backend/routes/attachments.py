@@ -306,6 +306,9 @@ async def download_attachment(
     # we require authentication. The email link access uses the public endpoint.
 
     file_path = Path(attachment.file_path)
+    if not file_path.is_absolute():
+        base_dir = _upload_dir()
+        file_path = base_dir / attachment.file_path
     if not file_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found on server")
 

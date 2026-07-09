@@ -109,7 +109,7 @@ def _build_event_output(
     if mapped_type == "approval_required" and approver_email:
         data["approver_email"] = approver_email
         data["approval_url"] = (
-            f"http://localhost:5173/tickets/{ticket.id}/approve"
+            f"https://sps-securedesk-frontend.onrender.com/tickets/{ticket.ticket_number}/approve"
         )
 
     return {

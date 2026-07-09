@@ -26,7 +26,7 @@ services:
       - key: CORS_ORIGINS
         value: https://sps-securedesk-frontend.onrender.com
       - key: AI_SERVICE_URL
-        value: http://sps-securedesk-ai:8001
+        value: http://sps-securedesk-ai:10000
       - key: SEED_DEFAULT_USERS
         value: false
       - key: MAX_UPLOAD_SIZE_MB
@@ -93,7 +93,7 @@ services:
       - key: BACKEND_API_URL
         value: http://sps-securedesk-ai-backend:10000
       - key: AI_SERVICE_URL
-        value: http://sps-securedesk-ai:8001
+        value: http://sps-securedesk-ai:10000
       - key: INTERNAL_API_KEY
         sync: false
       - key: PORTAL_URL

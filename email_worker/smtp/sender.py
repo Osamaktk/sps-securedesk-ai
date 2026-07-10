@@ -85,6 +85,47 @@ class EmailSender:
             return f"<h1>{data.ticket_id}</h1><p>{data.subject}</p>"
 
     @async_retry(max_attempts=3, base_delay=2.0, max_delay=15.0)
+    async def _send_via_brevo(
+        self, msg: email.mime.multipart.MIMEMultipart, to_email: str
+    ) -> None:
+        """Send an email via Brevo HTTPS API (bypasses SMTP port restrictions)."""
+        # Extract text/html and text/plain parts from the MIMEMultipart message
+        html_body = ""
+        text_body = ""
+        for part in msg.walk():
+            if part.get_content_type() == "text/html":
+                html_body = part.get_payload(decode=True).decode("utf-8", errors="replace")
+            elif part.get_content_type() == "text/plain":
+                text_body = part.get_payload(decode=True).decode("utf-8", errors="replace")
+
+        payload = {
+            "sender": {
+                "name": settings.email_from_name,
+                "email": settings.email_from_address,
+            },
+            "to": [{"email": to_email}],
+            "subject": msg["Subject"],
+            "htmlContent": html_body or "",
+            "textContent": text_body or "",
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={
+                    "api-key": settings.brevo_api_key,
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            response.raise_for_status()
+            logger.info(
+                "Email sent via Brevo to %s: subject=%s",
+                to_email,
+                msg["Subject"],
+            )
+
+    @async_retry(max_attempts=3, base_delay=2.0, max_delay=15.0)
     async def _send_via_resend(
         self, msg: email.mime.multipart.MIMEMultipart, to_email: str
     ) -> None:
@@ -168,7 +209,9 @@ class EmailSender:
             in_reply_to=in_reply_to,
         )
 
-        if settings.resend_api_key:
+        if settings.brevo_api_key:
+            await self._send_via_brevo(msg, to_email)
+        elif settings.resend_api_key:
             await self._send_via_resend(msg, to_email)
         else:
             await self._send_smtp(msg, to_email)

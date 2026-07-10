@@ -56,6 +56,9 @@ class Settings:
     resend_api_key: str = field(
         default_factory=lambda: os.getenv("RESEND_API_KEY", "")
     )
+    brevo_api_key: str = field(
+        default_factory=lambda: os.getenv("BREVO_API_KEY", "")
+    )
 
     # API
     backend_api_url: str = field(

@@ -9,6 +9,8 @@ import asyncio
 import os
 import signal
 import sys
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # Ensure the project root (parent of email_worker/) is on sys.path
 # so that 'from email_worker...' imports work when running
@@ -22,6 +24,33 @@ from email_worker.config.settings import settings
 from email_worker.imap.poller import IMAPPoller
 from email_worker.notifications.event_listener import EventListener
 from email_worker.utils.logger import logger
+
+
+class _HealthHandler(BaseHTTPRequestHandler):
+    """Minimal health-check handler — responds 200 OK to satisfy Render's Web Service port scan."""
+
+    def do_GET(self) -> None:
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"ok")
+
+    def log_message(self, format: str, *args) -> None:
+        """Silence default HTTP request logging."""
+        pass
+
+
+def start_health_server() -> None:
+    """Start a minimal HTTP health server in a daemon thread.
+
+    Render's Web Service tier requires the process to bind to $PORT.
+    This server exists only to satisfy that requirement — the actual
+    email worker logic runs in the asyncio event loop below.
+    """
+    port = int(os.getenv("PORT", "10000"))
+    server = ThreadingHTTPServer(("0.0.0.0", port), _HealthHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    logger.info("Health server listening on 0.0.0.0:%d (Render port bind)", port)
 
 
 async def start_imap_poller() -> None:
@@ -117,6 +146,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    start_health_server()
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

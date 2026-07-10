@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import uuid
@@ -110,11 +111,15 @@ async def upload_attachment(
     file_path = base_dir / stored_name
     file_path.write_bytes(content)
 
+    # Store a path RELATIVE to UPLOAD_DIR so downloads always resolve from the
+    # configured directory regardless of the service's CWD or absolute path.
+    relative_path = Path(str(ticket_id)) / stored_name
+
     attachment = Attachment(
         ticket_id=ticket_id,
         uploaded_by=current_user.id,
         filename=original_name,
-        file_path=str(file_path),
+        file_path=str(relative_path),
         file_size=len(content),
         mime_type=mime_type,
     )
@@ -174,6 +179,10 @@ async def upload_attachment_internal(
     file_path = base_dir / stored_name
     file_path.write_bytes(content)
 
+    # Store a path RELATIVE to UPLOAD_DIR so downloads always resolve from the
+    # configured directory regardless of the service's CWD or absolute path.
+    relative_path = Path(str(ticket_id)) / stored_name
+
     # Use a system user ID (ai-agent) for email attachments
     from sqlalchemy import select
     system_user = await db.scalar(select(User).where(User.email == "ai-agent@sps.com"))
@@ -183,7 +192,7 @@ async def upload_attachment_internal(
         ticket_id=ticket_id,
         uploaded_by=uploaded_by_id,
         filename=original_name,
-        file_path=str(file_path),
+        file_path=str(relative_path),
         file_size=len(content),
         mime_type=mime_type,
     )
@@ -243,6 +252,10 @@ async def upload_attachment_public(
     file_path = base_dir / stored_name
     file_path.write_bytes(content)
 
+    # Store a path RELATIVE to UPLOAD_DIR so downloads always resolve from the
+    # configured directory regardless of the service's CWD or absolute path.
+    relative_path = Path(str(ticket_id)) / stored_name
+
     # Use a system user ID (ai-agent) for guest uploads
     from sqlalchemy import select
     system_user = await db.scalar(select(User).where(User.email == "ai-agent@sps.com"))
@@ -252,7 +265,7 @@ async def upload_attachment_public(
         ticket_id=ticket_id,
         uploaded_by=uploaded_by_id,
         filename=original_name,
-        file_path=str(file_path),
+        file_path=str(relative_path),
         file_size=len(content),
         mime_type=mime_type,
     )
@@ -282,6 +295,42 @@ async def upload_attachment_public(
     return attachment
 
 
+def _resolve_attachment_path(file_path_str: str) -> Path | None:
+    """Resolve the stored attachment path to an actual file on disk.
+
+    file_path_str is stored RELATIVE to UPLOAD_DIR (e.g. "{ticket_id}/{uuid}_name.pdf").
+    We resolve it robustly against UPLOAD_DIR with several fallbacks so files are
+    always found regardless of the service's working directory or absolute path usage.
+    Returns the resolved Path if it exists, otherwise None.
+    """
+    candidates: list[Path] = []
+
+    # 1. Directly relative to UPLOAD_DIR (primary, canonical location)
+    candidates.append(_upload_dir() / file_path_str)
+
+    # 2. If stored path happens to be absolute and exists as-is
+    abs_path = Path(file_path_str)
+    if abs_path.is_absolute():
+        candidates.append(abs_path)
+
+    # 3. Legacy: relative to CWD
+    candidates.append(Path.cwd() / file_path_str)
+
+    # 4. Legacy: under ./uploads regardless of stored prefix
+    candidates.append(Path.cwd() / "uploads" / file_path_str)
+
+    # 5. Legacy: under UPLOAD_DIR even if path already included "uploads" prefix
+    candidates.append(_upload_dir() / Path(file_path_str).name)
+
+    for candidate in candidates:
+        try:
+            if candidate.exists() and candidate.is_file():
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
 @router.get("/{ticket_id}/attachments/{attachment_id}/file")
 async def download_attachment(
     ticket_id: uuid.UUID,
@@ -297,40 +346,22 @@ async def download_attachment(
     ticket = await ticket_service.get_ticket_by_id(db, ticket_id)
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
-    
-    # Allow access if user is authenticated and has permissions, or if user matches requester
+
+    # Allow access if user is authenticated and has permissions, otherwise deny.
     if current_user is not None and not ticket_service.user_can_view_ticket(current_user, ticket):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-    
-    # For non-authenticated users, check if requester matches - but since this is a web app,
-    # we require authentication. The email link access uses the public endpoint.
 
-    # The file_path is stored as a relative path like "uploads/uuid/filename.pdf"
-    # The path already includes "uploads" so we should use it directly relative to CWD
-    file_path_str = attachment.file_path
-    
-    # Debug logging to help diagnose path issues
-    import sys
-    print(f"DEBUG: Attachment file_path from DB: {attachment.file_path}", file=sys.stderr)
-    print(f"UPLOAD_DIR from env: {os.getenv('UPLOAD_DIR', './uploads')}", file=sys.stderr)
-    print(f"DEBUG: CWD: {Path.cwd()}", file=sys.stderr)
-    
-    file_path = Path(file_path_str)
-    if not file_path.is_absolute():
-        # Try resolving from CWD
-        candidate = Path.cwd() / file_path_str
-        print(f"DEBUG: Candidate path from CWD: {candidate}", file=sys.stderr)
-        if candidate.exists():
-            file_path = candidate
-        else:
-            # Try in case the path doesn't include "uploads" prefix
-            alt_candidate = Path.cwd() / "uploads" / file_path_str
-            print(f"DEBUG: Alternative path: {alt_candidate}", file=sys.stderr)
-            if alt_candidate.exists():
-                file_path = alt_candidate
-    
-    if not file_path.exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"File not found: {file_path}")
+    # Resolve the physical file location defensively across multiple candidate paths.
+    file_path = _resolve_attachment_path(attachment.file_path)
+    if file_path is None:
+        logger = logging.getLogger("sps.attachments")
+        logger.error(
+            "Attachment file missing on disk: attachment_id=%s stored_path=%s upload_dir=%s",
+            attachment_id,
+            attachment.file_path,
+            _upload_dir(),
+        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment file is no longer available")
 
     actor_id = current_user.id if current_user else None
 
@@ -349,10 +380,10 @@ async def download_attachment(
     # This allows the browser to display the file directly in the tab
     inline_types = {"application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "text/plain"}
     disposition = "inline" if attachment.mime_type in inline_types else f'attachment; filename="{attachment.filename}"'
-    
+
     return FileResponse(
         path=str(file_path),
         filename=attachment.filename,
         media_type=attachment.mime_type,
-        content_disposition=disposition,
+        headers={"Content-Disposition": disposition},
     )

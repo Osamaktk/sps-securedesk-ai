@@ -53,6 +53,9 @@ class Settings:
     email_test_redirect_base: str = field(
         default_factory=lambda: os.getenv("EMAIL_TEST_REDIRECT_BASE", "")
     )
+    resend_api_key: str = field(
+        default_factory=lambda: os.getenv("RESEND_API_KEY", "")
+    )
 
     # API
     backend_api_url: str = field(

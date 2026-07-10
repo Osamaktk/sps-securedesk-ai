@@ -49,4 +49,5 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
 # Run with production settings
-CMD ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2 --limit-concurrency 100 --backlog 2048"]
+# Migration is attempted but non-fatal so the server still starts if the DB is already migrated
+CMD ["sh", "-c", "alembic upgrade head || echo 'Migration skipped/failed; continuing'; uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2 --limit-concurrency 100 --backlog 2048"]

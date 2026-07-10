@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from email.utils import formataddr, formatdate
 from typing import Optional
 
+import httpx
 from jinja2 import Environment, FileSystemLoader
 
 from email_worker.config.settings import settings
@@ -84,6 +85,43 @@ class EmailSender:
             return f"<h1>{data.ticket_id}</h1><p>{data.subject}</p>"
 
     @async_retry(max_attempts=3, base_delay=2.0, max_delay=15.0)
+    async def _send_via_resend(
+        self, msg: email.mime.multipart.MIMEMultipart, to_email: str
+    ) -> None:
+        """Send an email via Resend HTTPS API (bypasses SMTP port restrictions)."""
+        # Extract text/html and text/plain parts from the MIMEMultipart message
+        html_body = ""
+        text_body = ""
+        for part in msg.walk():
+            if part.get_content_type() == "text/html":
+                html_body = part.get_payload(decode=True).decode("utf-8", errors="replace")
+            elif part.get_content_type() == "text/plain":
+                text_body = part.get_payload(decode=True).decode("utf-8", errors="replace")
+
+        payload = {
+            "from": f"{settings.email_from_name} <{settings.email_from_address}>",
+            "to": [to_email],
+            "subject": msg["Subject"],
+            "html": html_body,
+            "text": text_body,
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {settings.resend_api_key}",
+                },
+                json=payload,
+            )
+            response.raise_for_status()
+            logger.info(
+                "Email sent via Resend to %s: subject=%s",
+                to_email,
+                msg["Subject"],
+            )
+
+    @async_retry(max_attempts=3, base_delay=2.0, max_delay=15.0)
     async def _send_smtp(
         self, msg: email.mime.multipart.MIMEMultipart, to_email: str
     ) -> None:
@@ -130,7 +168,10 @@ class EmailSender:
             in_reply_to=in_reply_to,
         )
 
-        await self._send_smtp(msg, to_email)
+        if settings.resend_api_key:
+            await self._send_via_resend(msg, to_email)
+        else:
+            await self._send_smtp(msg, to_email)
 
         if ticket_id:
             message_store.save_message_mapping(mid, ticket_id)

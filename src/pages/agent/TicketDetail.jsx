@@ -9,7 +9,7 @@ import TicketPriorityBadge from '../../components/tickets/TicketPriorityBadge';
 import TicketReplyBox from '../../components/tickets/TicketReplyBox';
 import TicketStatusBadge from '../../components/tickets/TicketStatusBadge';
 import TicketTimeline from '../../components/tickets/TicketTimeline';
-import { addEvent, assignTicket, escalateTicket, getTicket, updateTicket, updateTicketStatus } from '../../services/ticketService.js';
+import { addEvent, escalateTicket, getTicket, updateTicket, updateTicketStatus } from '../../services/ticketService.js';
 
 function riskTone(risk) {
   if (risk === 'High Risk') return 'red';
@@ -48,16 +48,6 @@ export default function TicketDetail() {
   const reloadTicket = async () => {
     const updated = await getTicket(ticket.id);
     setTicket(updated);
-  };
-
-  const handleAssign = async () => {
-    setError('');
-    try {
-      await assignTicket(ticket.id, { agent_id: 'agent-001', actor_id: 'agent-001' });
-      await reloadTicket();
-    } catch {
-      setError('Assignment could not be saved.');
-    }
   };
 
   const handleEscalate = async (escalationData) => {
@@ -142,10 +132,7 @@ export default function TicketDetail() {
           </p>
         </div>
         <div className="ticket-detail-header__badges">
-          <div className="ticket-detail-header__actions">
-            <Button variant="outline" disabled={isLocked} onClick={handleAssign}>
-              {ticket.assignedAgentId ? 'Reassign' : 'Assign to agent'}
-            </Button>
+        <div className="ticket-detail-header__actions">
             <Button variant="outline" disabled={isLocked} onClick={() => setShowEscalationDialog(true)}>
               Escalate
             </Button>

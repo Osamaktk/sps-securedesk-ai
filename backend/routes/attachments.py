@@ -105,6 +105,7 @@ async def upload_attachment(
 
     mime_type = _detect_mime(content, file.content_type)
     base_dir = _upload_dir() / str(ticket_id)
+    # Ensure upload directory exists and is writable
     base_dir.mkdir(parents=True, exist_ok=True)
     original_name = _safe_filename(file.filename or "attachment")
     stored_name = f"{uuid.uuid4()}_{original_name}"

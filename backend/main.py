@@ -104,13 +104,32 @@ app.include_router(ai_resolve_router)
 async def on_startup() -> None:
     upload_dir = os.getenv("UPLOAD_DIR")
     if upload_dir:
+        # Try the configured directory first
         try:
             Path(upload_dir).mkdir(parents=True, exist_ok=True)
+            # Verify we can write to it
+            test_file = Path(upload_dir) / ".write_test"
+            test_file.touch()
+            test_file.unlink()
             logger.info("Upload directory ready: %s", upload_dir)
         except (OSError, PermissionError) as e:
-            logger.warning("Could not create UPLOAD_DIR=%s, falling back to ./uploads: %s", upload_dir, e)
-            upload_dir = "./uploads"
-            Path(upload_dir).mkdir(parents=True, exist_ok=True)
+            logger.warning("Could not create UPLOAD_DIR=%s, %s", upload_dir, e)
+            # Try fallback locations for Render compatibility
+            for fallback in ["./uploads", "/tmp/uploads"]:
+                try:
+                    Path(fallback).mkdir(parents=True, exist_ok=True)
+                    test_file = Path(fallback) / ".write_test"
+                    test_file.touch()
+                    test_file.unlink()
+                    upload_dir = fallback
+                    logger.info("Using fallback upload directory: %s", upload_dir)
+                    break
+                except (OSError, PermissionError):
+                    continue
+            else:
+                # Last resort
+                upload_dir = "./uploads"
+                Path(upload_dir).mkdir(parents=True, exist_ok=True)
     else:
         upload_dir = "./uploads"
         Path(upload_dir).mkdir(parents=True, exist_ok=True)

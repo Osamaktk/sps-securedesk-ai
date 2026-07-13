@@ -31,8 +31,9 @@ ENV PATH=/root/.local/bin:$PATH
 # Copy backend code
 COPY backend/ .
 
-# Create upload directory with restricted permissions
-RUN mkdir -p /var/data/uploads && chown -R securedesk:securedesk /var/data/uploads
+# Create upload directory with proper permissions for non-root user
+# Using /tmp for ephemeral storage (Render) or /app/uploads for persistent storage
+RUN mkdir -p /tmp/uploads /app/uploads && chown -R securedesk:securedesk /tmp/uploads /app/uploads
 
 # Security: drop capabilities, no new privileges
 RUN chmod 444 /app/backend/*.py 2>/dev/null || true

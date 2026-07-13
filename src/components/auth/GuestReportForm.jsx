@@ -152,7 +152,13 @@ export default function GuestReportForm() {
       setFiles([]);
       if (!user) setEmail('');
     } catch (err) {
-      console.error(err);
+      // Log detailed error information for debugging while keeping user-facing message friendly
+      console.error('Ticket submission error:', {
+        message: err?.message,
+        response: err?.response?.data,
+        status: err?.response?.status,
+        fullError: err,
+      });
       setError('Failed to submit report. Please try again later.');
     } finally {
       setIsSubmitting(false);

@@ -289,6 +289,7 @@ class IMAPPoller:
                             existing_ticket_number=existing_number,
                             existing_ticket_status=existing_status,
                             existing_ticket_subject=email_data.subject,
+                            new_ticket_number="",
                         )
                         logger.info(
                             "Duplicate notice email sent to %s for existing ticket %s",

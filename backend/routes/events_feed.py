@@ -95,7 +95,29 @@ def _build_event_data(event: TimelineEvent, ticket: Ticket) -> dict[str, Any]:
     elif mapped_type == "approval_required":
         pass  # handled separately below
 
+    elif mapped_type == "duplicate_detected":
+        # The DUPLICATE_ATTEMPT timeline event is recorded on the ORIGINAL
+        # ticket, and its content embeds the new (duplicate) ticket number as
+        # "... — created as SPS-2026-XXX". Surface that as new_ticket_number so
+        # the email_worker can show the user both tickets.
+        new_number = _extract_new_ticket_number(event.content or "")
+        if new_number:
+            base["new_ticket_number"] = new_number
+
     return base
+
+
+def _extract_new_ticket_number(content: str) -> str:
+    """Extract the duplicate ticket number from a DUPLICATE_ATTEMPT event.
+
+    The backend writes content like:
+        "Duplicate submission received via portal_form from x@y.com — created as SPS-2026-117"
+    Return the trailing "SPS-..." number, or "" if not found.
+    """
+    if "— created as " in content:
+        suffix = content.split("— created as ", 1)[1].strip()
+        return suffix
+    return ""
 
 
 def _build_event_output(

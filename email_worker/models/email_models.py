@@ -49,4 +49,5 @@ class EmailTemplateData(BaseModel):
     reply_content: str = ""
     portal_url: str = ""
     approval_url: str = ""
+    new_ticket_number: str = ""
     current_year: int = Field(default_factory=lambda: datetime.now(timezone.utc).year)

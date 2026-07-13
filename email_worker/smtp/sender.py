@@ -377,15 +377,20 @@ class EmailSender:
         existing_ticket_number: str,
         existing_ticket_status: str,
         existing_ticket_subject: str,
+        new_ticket_number: str = "",
     ) -> str:
         """Send a duplicate ticket notice email.
+
+        A new ticket IS created (with status duplicate) and then closed/linked
+        to the original. This email tells the requester about both tickets.
 
         Args:
             to_email: Recipient email address.
             to_name: Recipient display name.
-            existing_ticket_number: The existing ticket number.
-            existing_ticket_status: Current status of the existing ticket.
-            existing_ticket_subject: Subject of the existing ticket.
+            existing_ticket_number: The original (active) ticket number.
+            existing_ticket_status: Current status of the original ticket.
+            existing_ticket_subject: Subject of the original ticket.
+            new_ticket_number: The newly created duplicate ticket's own number.
 
         Returns:
             The Message-ID of the sent email.
@@ -396,6 +401,7 @@ class EmailSender:
             requester_name=to_name or to_email,
             requester_email=to_email,
             status=existing_ticket_status,
+            new_ticket_number=new_ticket_number,
             portal_url=settings.portal_url,
         )
 
@@ -403,12 +409,21 @@ class EmailSender:
         html_body = self._render_template("duplicate_notice.html", data)
         plain_text_body = (
             f"Dear {data.requester_name},\n\n"
-            f"We already have an open request from you with similar content.\n\n"
-            f"Existing Ticket: {existing_ticket_number}\n"
+            f"We received a new request from you with similar content to an "
+            f"existing open ticket. A new ticket was created for your submission "
+            f"and then automatically closed as a duplicate of your original request.\n\n"
+            f"Original (active) Ticket: {existing_ticket_number}\n"
             f"Status: {existing_ticket_status}\n"
-            f"Subject: {existing_ticket_subject}\n\n"
-            f"No new ticket has been created.\n\n"
-            f"View your existing ticket: {settings.portal_url}/tickets/{existing_ticket_number}\n\n"
+            f"Subject: {existing_ticket_subject}\n"
+        )
+        if new_ticket_number:
+            plain_text_body += (
+                f"\nNew (duplicate) Ticket: {new_ticket_number}\n"
+                f"This duplicate ticket has been closed and linked to the original above.\n"
+            )
+        plain_text_body += (
+            f"\nYou do not need to do anything else. You can track your original "
+            f"ticket here: {settings.portal_url}/tickets/{existing_ticket_number}\n\n"
             f"Thank you,\n{settings.email_from_name}"
         )
 

@@ -20,11 +20,12 @@
                         <td style="padding:40px;">
                             <h2 style="color:#1a1a2e; font-size:20px; margin:0 0 10px 0;">We already have your request</h2>
                             <p style="color:#555; font-size:15px; line-height:1.6; margin:0 0 10px 0;">Dear {{ requester_name }},</p>
-                            <p style="color:#555; font-size:15px; line-height:1.6; margin:0 0 20px 0;">We received a new request from you, but it appears to be similar to an existing open ticket. No new ticket has been created.</p>
+                            <p style="color:#555; font-size:15px; line-height:1.6; margin:0 0 20px 0;">We received a new request from you with similar content to an existing open ticket. A new ticket was created for your submission and then automatically closed as a duplicate of your original request.</p>
+
                             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc; border-radius:6px; border:1px solid #e2e8f0; margin-bottom:25px;">
                                 <tr>
                                     <td style="padding:20px;">
-                                        <h3 style="color:#0055a5; font-size:16px; margin:0 0 15px 0;">Existing Ticket</h3>
+                                        <h3 style="color:#0055a5; font-size:16px; margin:0 0 15px 0;">Original (Active) Ticket</h3>
                                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                                             <tr>
                                                 <td style="color:#888; font-size:13px; padding:4px 0; width:120px;">Ticket ID:</td>
@@ -44,14 +45,38 @@
                                     </td>
                                 </tr>
                             </table>
-                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+
+                            {% if new_ticket_number %}
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#fef2f2; border-radius:6px; border:1px solid #fecaca; margin-bottom:25px;">
                                 <tr>
-                                    <td align="center">
-                                        <a href="{{ portal_url }}/tickets/{{ ticket_id }}" style="display:inline-block; background-color:#0055a5; color:#ffffff; text-decoration:none; font-size:16px; font-weight:600; padding:14px 32px; border-radius:6px; margin:10px 0 20px 0;">View My Ticket</a>
+                                    <td style="padding:20px;">
+                                        <h3 style="color:#b91c1c; font-size:16px; margin:0 0 15px 0;">New (Duplicate) Ticket — Closed</h3>
+                                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td style="color:#888; font-size:13px; padding:4px 0; width:120px;">Ticket ID:</td>
+                                                <td style="color:#1a1a2e; font-size:14px; font-weight:600; padding:4px 0;">
+                                                    <span style="display:inline-block; background-color:#fee2e2; color:#b91c1c; padding:2px 10px; border-radius:4px; font-size:13px;">{{ new_ticket_number }}</span>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="color:#888; font-size:13px; padding:4px 0;">Status:</td>
+                                                <td style="color:#1a1a2e; font-size:14px; padding:4px 0;">duplicate (closed)</td>
+                                            </tr>
+                                        </table>
+                                        <p style="color:#555; font-size:14px; line-height:1.6; margin:12px 0 0 0;">This duplicate ticket has been closed and linked to your original request above. No further action is needed.</p>
                                     </td>
                                 </tr>
                             </table>
-                            <p style="color:#888; font-size:14px; line-height:1.6; margin:0;">No new ticket has been created.</p>
+                            {% endif %}
+
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td align="center">
+                                        <a href="{{ portal_url }}/tickets/{{ ticket_id }}" style="display:inline-block; background-color:#0055a5; color:#ffffff; text-decoration:none; font-size:16px; font-weight:600; padding:14px 32px; border-radius:6px; margin:10px 0 20px 0;">View My Original Ticket</a>
+                                    </td>
+                                </tr>
+                            </table>
+                            <p style="color:#888; font-size:14px; line-height:1.6; margin:0;">Your original ticket remains open and will be handled by our team.</p>
                         </td>
                     </tr>
                     <tr>

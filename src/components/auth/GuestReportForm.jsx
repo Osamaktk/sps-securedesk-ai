@@ -152,13 +152,25 @@ export default function GuestReportForm() {
       setFiles([]);
       if (!user) setEmail('');
     } catch (err) {
-      // Log detailed error information for debugging while keeping user-facing message friendly
+      // Surface detailed diagnostics for future debugging, but keep the
+      // user-facing message generic and friendly.
+      const detail =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        err?.message ||
+        'Unknown error';
       console.error('Ticket submission error:', {
         message: err?.message,
-        response: err?.response?.data,
         status: err?.response?.status,
+        statusText: err?.response?.statusText,
+        detail,
+        response: err?.response?.data,
         fullError: err,
       });
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[GuestReportForm] Submission failed (HTTP ${err?.response?.status ?? 'n/a'}): ${detail}`,
+      );
       setError('Failed to submit report. Please try again later.');
     } finally {
       setIsSubmitting(false);

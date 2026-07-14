@@ -287,8 +287,9 @@ async def create_ticket(
             db.add(ticket)
             try:
                 await db.flush()
-            except IntegrityError:
+            except IntegrityError as e:
                 await db.rollback()
+                logger.error("IntegrityError during duplicate ticket creation (attempt %d): %s", attempt, e)
                 if attempt == 4:
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
@@ -391,8 +392,9 @@ async def create_ticket(
         db.add(ticket)
         try:
             await db.flush()
-        except IntegrityError:
+        except IntegrityError as e:
             await db.rollback()
+            logger.error("IntegrityError during ticket creation (attempt %d): %s", attempt, e)
             if attempt == 4:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,

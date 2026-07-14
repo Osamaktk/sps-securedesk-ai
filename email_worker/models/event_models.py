@@ -13,6 +13,7 @@ EventType = Literal[
     "agent_reply",
     "status_changed",
     "approval_required",
+    "duplicate_detected",
 ]
 
 

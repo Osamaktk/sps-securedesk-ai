@@ -85,6 +85,7 @@ class EventListener:
                         ticket_id=ticket_ref,
                         subject=subject,
                         requester_name=requester_name,
+                        guest_token=data.get("guest_token", ""),
                     )
                     logger.info("ACK email sent for ticket %s", ticket_ref)
 

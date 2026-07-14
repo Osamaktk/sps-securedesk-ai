@@ -68,3 +68,19 @@ def decode_password_reset_token(token: str) -> str:
         return payload["sub"]
     except JWTError as exc:
         raise ValueError("Invalid or expired reset token") from exc
+
+
+def create_guest_dashboard_token(email: str) -> str:
+    expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+    payload = {"sub": email.strip().lower(), "purpose": "guest_dashboard", "exp": expires_at}
+    return jwt.encode(payload, _secret_key(), algorithm=_algorithm())
+
+
+def decode_guest_dashboard_token(token: str) -> str:
+    try:
+        payload = jwt.decode(token, _secret_key(), algorithms=[_algorithm()])
+        if payload.get("purpose") != "guest_dashboard":
+            raise ValueError("Invalid token purpose")
+        return payload["sub"]
+    except JWTError as exc:
+        raise ValueError("Invalid or expired guest dashboard token") from exc

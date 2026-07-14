@@ -227,6 +227,7 @@ class EmailSender:
         ticket_id: str,
         subject: str,
         requester_name: str = "",
+        guest_token: str = "",
     ) -> str:
         """Send a ticket acknowledgment email."""
         data = EmailTemplateData(
@@ -236,6 +237,7 @@ class EmailSender:
             requester_email=to_email,
             description=subject,
             portal_url=settings.portal_url,
+            guest_token=guest_token,
         )
 
         email_subject = f"[{ticket_id}] Your request has been received"

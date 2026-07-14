@@ -310,7 +310,26 @@ export async function addTicketAttachment(id, attachmentOrFile) {
 }
 
 export function createTicketFromChat(data) {
-  return createTicket({ ...data, source: 'chat' });
+  return createTicketFromForm(data);
+}
+
+// ---------------------------------------------------------------------------
+// Guest (token-based) dashboard — no account required.
+// ---------------------------------------------------------------------------
+
+export async function getGuestDashboard(token) {
+  const res = await api.get('/api/guest/dashboard', { params: { token } });
+  return res.data;
+}
+
+export async function guestReply(token, ticketNumber, content) {
+  const res = await api.post('/api/guest/reply', { token, ticket_number: ticketNumber, content });
+  return res.data;
+}
+
+export async function guestCreateTicket(token, data) {
+  const res = await api.post('/api/guest/tickets', { ...data, token });
+  return res.data;
 }
 
 export function createTicketFromForm(data) {

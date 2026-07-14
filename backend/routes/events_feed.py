@@ -24,6 +24,7 @@ from database import get_db
 from models.ticket import RiskLevel, Ticket, TicketStatus
 from models.timeline_event import TimelineEvent, TimelineEventType
 from models.user import User, UserRole
+from services.auth_service import create_guest_dashboard_token
 
 router = APIRouter(tags=["events"])
 
@@ -78,7 +79,14 @@ def _build_event_data(event: TimelineEvent, ticket: Ticket) -> dict[str, Any]:
 
     mapped_type = EVENT_TYPE_MAP.get(event.event_type, "")
 
-    if mapped_type == "agent_reply":
+    if mapped_type == "ticket_created":
+        # Embed a signed guest dashboard token so the requester can view all of
+        # their tickets and reply without a full account (and without exposing
+        # their email as a query param). Invalid/forged tokens are rejected by
+        # decode_guest_dashboard_token on the backend.
+        base["guest_token"] = create_guest_dashboard_token(ticket.requester_email)
+
+    elif mapped_type == "agent_reply":
         base["agent_name"] = (event.actor.full_name if event.actor else None) or event.actor_email or "Support Agent"
         base["content"] = event.content or ""
 

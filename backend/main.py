@@ -14,7 +14,7 @@ import models  # noqa: F401
 from database import AsyncSessionLocal, Base, DATABASE_URL, engine
 from middleware.security_middleware import check_security_threats
 from models.user import User, UserRole
-from routes import ai_resolve_router, approvals_router, attachments_router, auth_router, events_feed_router, events_router, notifications_router, reports_router, tickets_router, users_router
+from routes import ai_resolve_router, approvals_router, attachments_router, auth_router, events_feed_router, events_router, guest_router, notifications_router, reports_router, tickets_router, users_router
 from services.auth_service import hash_password
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
@@ -92,6 +92,7 @@ app.include_router(auth_router)
 app.include_router(tickets_router)
 app.include_router(events_router)
 app.include_router(events_feed_router)
+app.include_router(guest_router)
 app.include_router(attachments_router)
 app.include_router(approvals_router)
 app.include_router(reports_router)

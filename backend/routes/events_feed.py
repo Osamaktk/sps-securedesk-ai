@@ -216,6 +216,16 @@ async def email_events_feed(
         ) and not ev.is_public:
             continue
 
+        # A duplicate (auto-closed) ticket still gets a TICKET_CREATED event
+        # logged on it (see ticket_service.py, the `if duplicate is not None:`
+        # block). We must NOT forward that as a generic "ticket_created" ack
+        # email, otherwise the requester receives the generic ack in addition to
+        # the correct duplicate-closing notice (triggered by DUPLICATE_ATTEMPT).
+        # Skip the ack for any TICKET_CREATED event whose ticket is a duplicate.
+        # The DUPLICATE_ATTEMPT -> "duplicate_detected" path is unaffected.
+        if ev.event_type == TimelineEventType.TICKET_CREATED and ticket.status == TicketStatus.DUPLICATE:
+            continue
+
         mapped_type = EVENT_TYPE_MAP.get(ev.event_type, "")
         if not mapped_type:
             continue

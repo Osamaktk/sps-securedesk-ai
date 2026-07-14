@@ -11,6 +11,16 @@ all required values:
 - ticket_status: 'duplicate', 'escalated' (missing in DB)
 - ticket_source: 'form', 'ai_chat', 'dashboard' (missing in DB)
 - timeline_event_type: 'duplicate_attempt', 'email_reply', 'escalated' (missing in DB)
+
+IMPORTANT: The CHECK constraints created by SQLAlchemy's SQLEnum(native_enum=False) use the
+explicit `name=` argument from the models as their constraint name:
+- tickets.status  -> "ticket_status"
+- tickets.source  -> "ticket_source"
+- timeline_events.event_type -> "timeline_event_type"
+The PostgreSQL branch below therefore drops/recreates these constraints using their TRUE names,
+not the previously-guessed "tickets_status_check" / "ck_tickets_status" names (which never
+existed, so the original drop was a silent no-op). This only affects fresh databases being set
+up from scratch; the live database is fixed by migration 202607140004.
 """
 
 from alembic import op
@@ -36,10 +46,10 @@ def upgrade() -> None:
 
     if is_postgresql:
         # PostgreSQL supports dropping and re-adding CHECK constraints directly.
-        op.execute("ALTER TABLE tickets DROP CONSTRAINT IF EXISTS ck_tickets_status")
-        op.execute("ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_status_check")
+        # Use the TRUE constraint names defined by the models' SQLEnum(name=...).
+        op.execute("ALTER TABLE tickets DROP CONSTRAINT IF EXISTS ticket_status")
         op.execute("""
-            ALTER TABLE tickets ADD CONSTRAINT tickets_status_check
+            ALTER TABLE tickets ADD CONSTRAINT ticket_status
             CHECK (status::text = ANY (ARRAY[
                 'open'::text,
                 'in_progress'::text,
@@ -52,10 +62,9 @@ def upgrade() -> None:
             ]))
         """)
 
-        op.execute("ALTER TABLE tickets DROP CONSTRAINT IF EXISTS ck_tickets_source")
-        op.execute("ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_source_check")
+        op.execute("ALTER TABLE tickets DROP CONSTRAINT IF EXISTS ticket_source")
         op.execute("""
-            ALTER TABLE tickets ADD CONSTRAINT tickets_source_check
+            ALTER TABLE tickets ADD CONSTRAINT ticket_source
             CHECK (source::text = ANY (ARRAY[
                 'email'::text,
                 'portal_form'::text,
@@ -66,10 +75,9 @@ def upgrade() -> None:
             ]))
         """)
 
-        op.execute("ALTER TABLE timeline_events DROP CONSTRAINT IF EXISTS ck_timeline_events_event_type")
-        op.execute("ALTER TABLE timeline_events DROP CONSTRAINT IF EXISTS timeline_events_event_type_check")
+        op.execute("ALTER TABLE timeline_events DROP CONSTRAINT IF EXISTS timeline_event_type")
         op.execute("""
-            ALTER TABLE timeline_events ADD CONSTRAINT timeline_events_event_type_check
+            ALTER TABLE timeline_events ADD CONSTRAINT timeline_event_type
             CHECK (event_type::text = ANY (ARRAY[
                 'ticket_created'::text,
                 'email_received'::text,

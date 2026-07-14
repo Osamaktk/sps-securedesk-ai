@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -169,9 +169,10 @@ async def _call_ai_classifier(subject: str, description: str) -> dict[str, Any] 
 
 
 async def generate_ticket_number(db: AsyncSession, year: int) -> str:
-    # Locks matching ticket-number rows in PostgreSQL, then a unique retry handles the empty-year race.
+    # Serialize ticket-number generation per year using a Postgres advisory transaction lock.
     prefix = f"SPS-{year}-"
-    result = await db.execute(select(Ticket.ticket_number).where(Ticket.ticket_number.startswith(prefix)).with_for_update())
+    await db.execute(select(func.pg_advisory_xact_lock(year)))
+    result = await db.execute(select(Ticket.ticket_number).where(Ticket.ticket_number.startswith(prefix)))
     highest = 0
     for ticket_number in result.scalars():
         suffix = ticket_number.removeprefix(prefix)

@@ -36,6 +36,7 @@ def upgrade() -> None:
 
     if is_postgresql:
         # PostgreSQL supports dropping and re-adding CHECK constraints directly.
+        op.execute("ALTER TABLE tickets DROP CONSTRAINT IF EXISTS ck_tickets_status")
         op.execute("ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_status_check")
         op.execute("""
             ALTER TABLE tickets ADD CONSTRAINT tickets_status_check
@@ -51,6 +52,7 @@ def upgrade() -> None:
             ]))
         """)
 
+        op.execute("ALTER TABLE tickets DROP CONSTRAINT IF EXISTS ck_tickets_source")
         op.execute("ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_source_check")
         op.execute("""
             ALTER TABLE tickets ADD CONSTRAINT tickets_source_check
@@ -64,6 +66,7 @@ def upgrade() -> None:
             ]))
         """)
 
+        op.execute("ALTER TABLE timeline_events DROP CONSTRAINT IF EXISTS ck_timeline_events_event_type")
         op.execute("ALTER TABLE timeline_events DROP CONSTRAINT IF EXISTS timeline_events_event_type_check")
         op.execute("""
             ALTER TABLE timeline_events ADD CONSTRAINT timeline_events_event_type_check

@@ -159,17 +159,20 @@ export default function GuestReportForm() {
         err?.response?.data?.message ||
         err?.message ||
         'Unknown error';
-      console.error('Ticket submission error:', {
+      // Log full backend error details for diagnosability
+      const responseBody = err?.response?.data
+        ? (typeof err?.response?.data === 'object' ? JSON.stringify(err?.response?.data, null, 2) : String(err?.response?.data))
+        : 'No response body';
+      console.error('[GuestReportForm] Ticket submission failed:', {
         message: err?.message,
         status: err?.response?.status,
         statusText: err?.response?.statusText,
         detail,
-        response: err?.response?.data,
-        fullError: err,
+        responseBody,
       });
       // eslint-disable-next-line no-console
       console.warn(
-        `[GuestReportForm] Submission failed (HTTP ${err?.response?.status ?? 'n/a'}): ${detail}`,
+        `[GuestReportForm] Submission failed (HTTP ${err?.response?.status ?? 'n/a'}): ${detail} | Body: ${responseBody}`,
       );
       setError('Failed to submit report. Please try again later.');
     } finally {

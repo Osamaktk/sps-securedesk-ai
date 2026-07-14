@@ -191,6 +191,15 @@ async def get_ticket_by_id(db: AsyncSession, ticket_id: uuid.UUID) -> Ticket | N
     return result.scalar_one_or_none()
 
 
+async def get_ticket_by_number(db: AsyncSession, ticket_number: str) -> Ticket | None:
+    result = await db.execute(
+        select(Ticket)
+        .options(selectinload(Ticket.timeline_events), selectinload(Ticket.attachments))
+        .where(Ticket.ticket_number == ticket_number)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_ticket_by_number_and_email(db: AsyncSession, ticket_number: str, email: str) -> Ticket | None:
     """
     Retrieve a ticket by ticket_number and verify email matches requester_email.
